@@ -9,15 +9,6 @@ export default function AppNavigator() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-         headerStyle: {
-//                height: 80, // Reduce height to avoid excessive padding
-               backgroundColor: '#fff', // Match your app theme
-             },
-             headerTitleAlign: 'center', // Center title properly
-             headerTitleStyle: {
-               fontSize: 22, // Adjust font size if needed
-               fontWeight: 'bold',
-             },
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
 
