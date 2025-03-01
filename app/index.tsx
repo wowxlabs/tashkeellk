@@ -9,6 +9,7 @@ export default function AppNavigator() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
+          headerStatusBarHeight: 0,
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
 
