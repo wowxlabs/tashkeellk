@@ -10,6 +10,14 @@ buildscript {
 
         ndkVersion = "26.1.10909125"
     }
+    configurations.all {
+        resolutionStrategy.eachDependency { details ->
+            if (details.requested.group == 'org.jetbrains.kotlin' &&
+                details.requested.name.startsWith('kotlin-')) {
+                details.useVersion(kotlinVersion)
+            }
+        }
+    }
     repositories {
         google()
         mavenCentral()
