@@ -1,38 +1,12 @@
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import RadioScreen from '../src/screens/RadioScreen';
-import YouTubeScreen from '../src/screens/YouTubeScreen';
-import { Ionicons } from '@expo/vector-icons';
+import 'react-native-gesture-handler';
+import React from 'react';
+import { NavigationIndependentTree } from '@react-navigation/native';
+import AppNavigator from '../src/navigation/AppNavigator';
 
-const Tab = createBottomTabNavigator();
-
-export default function AppNavigator() {
+export default function App() {
   return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-          headerStatusBarHeight: 0,
-        tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
-
-          if (route.name === 'YouTube') {
-            iconName = focused ? 'logo-youtube' : 'logo-youtube';
-          } else if (route.name === 'Radio') {
-            iconName = focused ? 'radio' : 'radio-outline';
-          }
-
-          return <Ionicons name={iconName} size={size} color={color} />;
-        },
-        tabBarActiveTintColor: 'red',
-        tabBarInactiveTintColor: 'gray',
-        tabBarStyle: {
-          height: 40, // Reduce height to avoid excessive padding
-          paddingBottom: 5, // Adjust bottom padding
-          paddingTop: 5, // Ensure icons are centered
-        },
-      })}
-    >
-      <Tab.Screen name="YouTube" component={YouTubeScreen} />
-      <Tab.Screen name="Radio" component={RadioScreen} />
-    </Tab.Navigator>
-
+    <NavigationIndependentTree>
+      <AppNavigator />
+    </NavigationIndependentTree>
   );
 }
