@@ -115,7 +115,7 @@ const YouTubeScreen = () => {
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.backButton} onPress={() => setSelectedVideo(null)}>
-              <Text style={styles.backText}>Back to Sermons</Text>
+              <Text style={styles.backText}>Back to Bayans</Text>
               <Ionicons name="arrow-undo" size={18} color={BRAND_COLORS.textDark} />
             </TouchableOpacity>
 

@@ -261,7 +261,7 @@ const HomeScreen = () => {
       />
       <BayansStrip
         items={latestBayans}
-        onSelect={(item) => navigation.navigate('Sermons', { featuredVideo: item })}
+        onSelect={(item) => navigation.navigate('Bayans', { featuredVideo: item })}
       />
     </ScrollView>
   );
