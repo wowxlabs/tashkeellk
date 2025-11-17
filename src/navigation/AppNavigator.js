@@ -1,11 +1,12 @@
-import React from 'react';
-import { useColorScheme, Image, View, Text, StyleSheet, Linking, TouchableOpacity } from 'react-native';
+import React, { useEffect } from 'react';
+import { useColorScheme, Image, View, Text, StyleSheet, Linking, TouchableOpacity, Platform } from 'react-native';
 import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList, DrawerItem } from '@react-navigation/drawer';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import * as SystemUI from 'expo-system-ui';
 import RadioScreen from '../screens/RadioScreen';
 import YouTubeScreen from '../screens/YouTubeScreen';
 import HomeScreen from '../screens/HomeScreen';
@@ -24,6 +25,12 @@ const brandColors = {
 export default function AppNavigator() {
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      SystemUI.setBackgroundColorAsync(brandColors.primary);
+    }
+  }, []);
 
   const navigationTheme =
     colorScheme === 'dark'
@@ -54,13 +61,21 @@ export default function AppNavigator() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <StatusBar style="light" backgroundColor={brandColors.primary} translucent={false} />
+      <StatusBar style="light" backgroundColor={brandColors.primary} translucent={true} />
       <NavigationContainer theme={navigationTheme}>
         <Drawer.Navigator
           screenOptions={{
             headerTitleAlign: 'center',
             headerStyle: {
               backgroundColor: brandColors.primary,
+              height: 56 + insets.top,
+            },
+            headerStatusBarHeight: 0,
+            headerTitleContainerStyle: {
+              paddingTop: Math.max(insets.top - 24, 0),
+            },
+            headerLeftContainerStyle: {
+              paddingTop: Math.max(insets.top - 24, 0),
             },
             headerTintColor: brandColors.textOnPrimary,
             headerTitleStyle: { fontWeight: '600', fontSize: 20 },
@@ -94,15 +109,15 @@ export default function AppNavigator() {
             sceneContainerStyle: { backgroundColor: brandColors.background },
           }}
           drawerContent={(props) => (
-            <View style={{ flex: 1, backgroundColor: '#ffffff', paddingTop: insets.top, overflow: 'visible' }}>
-              <View style={[styles.drawerHeader, { top: insets.top }]}>
+            <View style={{ flex: 1, backgroundColor: '#ffffff', paddingTop: 0, paddingHorizontal: 0, marginHorizontal: 0, overflow: 'visible' }}>
+              <View style={[styles.drawerHeader, { top: 0, left: 0, right: 0, paddingTop: insets.top, minHeight: insets.top + 140 }]}>
                 <Image
                   source={require('../../assets/images/tashkeel_banner.jpg')}
-                  style={styles.drawerBanner}
+                  style={[styles.drawerBanner, { marginTop: -insets.top, height: insets.top + 140 }]}
                   resizeMode="cover"
                 />
                 <View style={styles.drawerBannerOverlay} />
-                <View style={styles.drawerLogoWrapper}>
+                <View style={[styles.drawerLogoWrapper, { top: insets.top + 8 }]}>
                   <Image
                     source={require('../../assets/images/icon.png')}
                     style={styles.drawerLogo}
@@ -118,8 +133,8 @@ export default function AppNavigator() {
                 contentContainerStyle={{
                   paddingLeft: 0,
                   paddingRight: 0,
-                  paddingBottom: 0,
-                  paddingTop: 140,
+                  paddingBottom: 100,
+                  paddingTop: insets.top + 140,
                   paddingHorizontal: 0,
                 }}
                 style={{ flex: 1, paddingHorizontal: 0, paddingLeft: 0, paddingRight: 0 }}
@@ -175,9 +190,9 @@ export default function AppNavigator() {
                   })}
                 </View>
               </DrawerContentScrollView>
-              <View style={[styles.drawerFooter, { paddingBottom: insets.bottom }]}>
+              <View style={[styles.drawerFooter, { position: 'absolute', bottom: 0, left: 0, right: 0, paddingBottom: Math.min(insets.bottom || 4, 8) }]}>
                 <Text style={styles.footerText}>Version 1.0.1</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 4 }}>
                   <Text style={styles.footerSubText}>© 2025 </Text>
                   <TouchableOpacity onPress={() => Linking.openURL('https://www.tashkeel.lk')}>
                     <Text style={[styles.footerSubText, styles.footerLink]}>Tashkeel Media</Text>
@@ -226,7 +241,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingBottom: 0,
-    width: '100%',
+    paddingHorizontal: 0,
     zIndex: 1,
   },
   drawerBanner: {
@@ -279,7 +294,8 @@ const styles = StyleSheet.create({
   },
   drawerFooter: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 20,
+    paddingBottom: 4,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#b6e3d4',
     backgroundColor: '#ffffff',
@@ -287,11 +303,13 @@ const styles = StyleSheet.create({
   footerText: {
     color: '#0B4733',
     fontWeight: '600',
+    textAlign: 'center',
   },
   footerSubText: {
     color: '#4c6b5f',
     marginTop: 4,
     fontSize: 12,
+    textAlign: 'center',
   },
   footerLink: {
     textDecorationLine: 'underline',

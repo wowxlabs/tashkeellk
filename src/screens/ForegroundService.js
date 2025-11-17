@@ -8,7 +8,9 @@ export async function startForegroundService() {
     await Audio.setAudioModeAsync({
       allowsRecordingIOS: false,
       staysActiveInBackground: true,
-      playsInSilentModeIOS: true
+      playsInSilentModeIOS: true,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
     });
 
     console.log("Foreground service started for background audio.");

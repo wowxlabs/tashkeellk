@@ -236,7 +236,7 @@
 //export default RadioScreen;
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, TouchableOpacity, Text, StyleSheet, Animated, Easing, ImageBackground, ScrollView } from 'react-native';
+import { View, TouchableOpacity, Text, StyleSheet, Animated, Easing, ImageBackground, ScrollView, AppState } from 'react-native';
 import { Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -261,6 +261,9 @@ const RadioScreen = () => {
   const [nextTrack, setNextTrack] = useState(null);
   const [songHistory, setSongHistory] = useState([]);
   const navigation = useNavigation();
+  const userPausedRef = useRef(false); // Track if user intentionally paused
+  const appStateRef = useRef(AppState.currentState);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     navigation.setOptions({
@@ -286,6 +289,173 @@ const RadioScreen = () => {
     const intervalId = setInterval(fetchNowPlaying, 30000);
     return () => clearInterval(intervalId);
   }, [fetchNowPlaying]);
+
+
+  // Set audio mode on mount and handle app state changes
+  useEffect(() => {
+    // Set audio mode for background playback
+    Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      staysActiveInBackground: true,
+      playsInSilentModeIOS: true,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+    }).catch(console.error);
+
+    // Handle app state changes to maintain audio playback
+    const subscription = AppState.addEventListener('change', async (nextAppState) => {
+      appStateRef.current = nextAppState; // Update app state ref
+      
+      // Ensure audio mode is set for both background and active states
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          staysActiveInBackground: true,
+          playsInSilentModeIOS: true,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false,
+        });
+
+        // If playing and going to background, ensure keep-awake is active
+        if (nextAppState === 'background' && isPlaying) {
+          await startForegroundService();
+          // Also ensure audio is still playing
+          if (sound) {
+            try {
+              const status = await sound.getStatusAsync();
+              if (status.isLoaded && !status.isPlaying && !userPausedRef.current) {
+                await sound.playAsync();
+              }
+            } catch (error) {
+              console.error('Error resuming audio in background:', error);
+            }
+          }
+        }
+
+        // If coming back to active and was playing, resume if needed
+        if (nextAppState === 'active' && isPlaying && sound) {
+          try {
+            const status = await sound.getStatusAsync();
+            if (!status.isPlaying) {
+              await sound.playAsync();
+            }
+          } catch (error) {
+            // If sound object is invalid, recreate it
+            if (error.message && error.message.includes('Player does not exist')) {
+              // Sound was lost, need to recreate
+              const { sound: newSound } = await Audio.Sound.createAsync(
+                { uri: RADIO_STREAM_URL },
+                { 
+                  shouldPlay: true,
+                  isLooping: false,
+                  isMuted: false,
+                  volume: 1.0,
+                }
+              );
+              
+              // Add status update listener
+              newSound.setOnPlaybackStatusUpdate((status) => {
+                if (status.isLoaded) {
+                  if (status.didJustFinish) {
+                    newSound.replayAsync().catch(console.error);
+                  } else if (!status.isPlaying && !userPausedRef.current && !status.isBuffering) {
+                    if (appStateRef.current === 'background' || appStateRef.current === 'inactive') {
+                      newSound.playAsync().catch(console.error);
+                    }
+                  }
+                }
+              });
+              
+              setSound(newSound);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error handling app state change:', error);
+      }
+    });
+
+    return () => {
+      subscription?.remove();
+    };
+  }, [isPlaying, sound]);
+
+  // Periodic check to ensure audio continues playing in background
+  useEffect(() => {
+    if (!isPlaying || userPausedRef.current) return;
+
+    const checkInterval = setInterval(async () => {
+      if (!sound || userPausedRef.current) return;
+
+      // Ensure foreground service is active if in background
+      if (appStateRef.current === 'background' || appStateRef.current === 'inactive') {
+        try {
+          await startForegroundService();
+        } catch (error) {
+          console.error('Error maintaining foreground service:', error);
+        }
+      }
+
+      try {
+        const status = await sound.getStatusAsync();
+        if (status.isLoaded && !status.isPlaying && !status.isBuffering && !userPausedRef.current) {
+          // Audio stopped unexpectedly, restart it
+          console.log('Audio stopped unexpectedly, restarting...');
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: false,
+            staysActiveInBackground: true,
+            playsInSilentModeIOS: true,
+            shouldDuckAndroid: true,
+            playThroughEarpieceAndroid: false,
+          });
+          await sound.playAsync();
+        }
+      } catch (error) {
+        // Sound object might be invalid, try to recreate if we're supposed to be playing
+        if (error.message && error.message.includes('Player does not exist')) {
+          console.log('Sound object lost, recreating...');
+          try {
+            await Audio.setAudioModeAsync({
+              allowsRecordingIOS: false,
+              staysActiveInBackground: true,
+              playsInSilentModeIOS: true,
+              shouldDuckAndroid: true,
+              playThroughEarpieceAndroid: false,
+            });
+            await startForegroundService();
+            
+            const { sound: newSound } = await Audio.Sound.createAsync(
+              { uri: RADIO_STREAM_URL },
+              { 
+                shouldPlay: true,
+                isLooping: false,
+                isMuted: false,
+                volume: 1.0,
+              }
+            );
+            
+            newSound.setOnPlaybackStatusUpdate((status) => {
+              if (status.isLoaded) {
+                if (status.didJustFinish) {
+                  newSound.replayAsync().catch(console.error);
+                } else if (!status.isPlaying && !userPausedRef.current && !status.isBuffering) {
+                  if (appStateRef.current === 'background' || appStateRef.current === 'inactive') {
+                    newSound.playAsync().catch(console.error);
+                  }
+                }
+              }
+            });
+            
+            setSound(newSound);
+          } catch (recreateError) {
+            console.error('Error recreating sound:', recreateError);
+          }
+        }
+      }
+    }, 2000); // Check every 2 seconds
+
+    return () => clearInterval(checkInterval);
+  }, [isPlaying, sound]);
   const formatTime = (timestamp) => {
     if (!timestamp) return '--:--';
     return new Date(timestamp * 1000).toLocaleTimeString('en-GB', {
@@ -335,6 +505,7 @@ const RadioScreen = () => {
     return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+
   // Animated waveform bars
   const bars = useRef(
     Array(15).fill().map(() => new Animated.Value(10))
@@ -361,7 +532,7 @@ const RadioScreen = () => {
     });
   };
 
-  const stopWaveform = () => {
+  const stopWaveform = useCallback(() => {
     bars.forEach((bar) => {
       Animated.timing(bar, {
         toValue: 10,
@@ -369,23 +540,148 @@ const RadioScreen = () => {
         useNativeDriver: false,
       }).start();
     });
-  };
+  }, []);
+
+  // Animate pulse icon when playing
+  useEffect(() => {
+    if (isPlaying) {
+      const pulseAnimation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.3,
+            duration: 800,
+            easing: Easing.easeInOut,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 800,
+            easing: Easing.easeInOut,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      pulseAnimation.start();
+      return () => pulseAnimation.stop();
+    } else {
+      pulseAnim.setValue(1);
+    }
+  }, [isPlaying, pulseAnim]);
 
   const playRadio = async () => {
     try {
+      userPausedRef.current = false; // Reset pause flag
+      
+      // Ensure audio mode is set for background playback
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        staysActiveInBackground: true,
+        playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
+
+      await startForegroundService();
+
       if (!sound) {
-        await startForegroundService();
         const { sound: newSound } = await Audio.Sound.createAsync(
           { uri: RADIO_STREAM_URL },
-          { shouldPlay: true }
+          { 
+            shouldPlay: true,
+            isLooping: false,
+            isMuted: false,
+            volume: 1.0,
+          }
         );
+        
+        // Add status update listener to detect when playback stops unexpectedly
+        newSound.setOnPlaybackStatusUpdate((status) => {
+          if (status.isLoaded) {
+            if (status.didJustFinish) {
+              // Stream ended, restart it
+              newSound.replayAsync().catch(console.error);
+            } else if (!status.isPlaying && !userPausedRef.current && !status.isBuffering) {
+              // Playback stopped unexpectedly (not user-initiated), try to resume
+              // Only auto-resume if app is in background (screen locked)
+              if (appStateRef.current === 'background' || appStateRef.current === 'inactive') {
+                newSound.playAsync().catch(console.error);
+              }
+            }
+          }
+        });
+        
         setSound(newSound);
         setIsPlaying(true);
+        userPausedRef.current = false; // Reset pause flag when playing
         animateWaveform();
       } else {
-        await sound.playAsync();
-        setIsPlaying(true);
-        animateWaveform();
+        // Check if sound is still valid
+        try {
+          const status = await sound.getStatusAsync();
+          if (status.isLoaded) {
+            await sound.playAsync();
+          } else {
+            // Sound was unloaded, recreate it
+            const { sound: newSound } = await Audio.Sound.createAsync(
+              { uri: RADIO_STREAM_URL },
+              { 
+                shouldPlay: true,
+                isLooping: false,
+                isMuted: false,
+                volume: 1.0,
+              }
+            );
+            
+            // Add status update listener
+            newSound.setOnPlaybackStatusUpdate((status) => {
+              if (status.isLoaded) {
+                if (status.didJustFinish) {
+                  newSound.replayAsync().catch(console.error);
+                } else if (!status.isPlaying && !userPausedRef.current && !status.isBuffering) {
+                  if (appStateRef.current === 'background' || appStateRef.current === 'inactive') {
+                    newSound.playAsync().catch(console.error);
+                  }
+                }
+              }
+            });
+            
+            setSound(newSound);
+          }
+          setIsPlaying(true);
+          animateWaveform();
+        } catch (error) {
+          // Sound object is invalid, recreate it
+          if (error.message && error.message.includes('Player does not exist')) {
+            const { sound: newSound } = await Audio.Sound.createAsync(
+              { uri: RADIO_STREAM_URL },
+              { 
+                shouldPlay: true,
+                isLooping: false,
+                isMuted: false,
+                volume: 1.0,
+              }
+            );
+            
+            // Add status update listener
+            newSound.setOnPlaybackStatusUpdate((status) => {
+              if (status.isLoaded) {
+                if (status.didJustFinish) {
+                  newSound.replayAsync().catch(console.error);
+                } else if (!status.isPlaying && !userPausedRef.current && !status.isBuffering) {
+                  if (appStateRef.current === 'background' || appStateRef.current === 'inactive') {
+                    newSound.playAsync().catch(console.error);
+                  }
+                }
+              }
+            });
+            
+            setSound(newSound);
+            setIsPlaying(true);
+            animateWaveform();
+          } else {
+            throw error;
+          }
+        }
       }
     } catch (error) {
       console.error('Error playing radio:', error);
@@ -395,6 +691,7 @@ const RadioScreen = () => {
   const pauseRadio = async () => {
     try {
       if (sound) {
+        userPausedRef.current = true; // Mark as user-initiated pause
         await sound.pauseAsync();
         setIsPlaying(false);
         stopWaveform();
@@ -404,7 +701,7 @@ const RadioScreen = () => {
     }
   };
 
-  const stopRadio = async () => {
+  const stopRadio = useCallback(async () => {
     try {
       if (sound) {
         await sound.stopAsync();
@@ -414,16 +711,26 @@ const RadioScreen = () => {
         stopWaveform();
       }
     } catch (error) {
+      // Ignore "Player does not exist" errors
+      if (error.message && error.message.includes('Player does not exist')) {
+        setSound(null);
+        setIsPlaying(false);
+        stopWaveform();
+        return;
+      }
       console.error('Error stopping radio:', error);
     }
-  };
+  }, [sound, stopWaveform]);
 
+  // Stop radio when navigating away from the screen
   useFocusEffect(
     React.useCallback(() => {
+      // Screen is focused - radio can play
       return () => {
+        // Screen lost focus - stop the radio
         stopRadio();
       };
-    }, [sound])
+    }, [stopRadio])
   );
 
   return (
@@ -439,30 +746,64 @@ const RadioScreen = () => {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.container}>
-        <Text style={styles.title}>Tashkeel Radio</Text>
-        <Text style={styles.description}>Your ultimate resource for spiritual growth and guidance towards attaining Jannah (Paradise) 🎙️</Text>
-
         {nowPlaying && (
           <View style={styles.infoRow}>
             <View style={styles.nowPlayingCard}>
-              <View style={styles.liveBadge}>
-                <View style={styles.liveDot} />
-                <Text style={styles.liveText}>LIVE 24/7</Text>
+              <View style={styles.nowPlayingHeader}>
+                <View style={styles.nowPlayingHeaderLeft}>
+                  <View style={styles.nowPlayingIcon}>
+                    <Ionicons name="radio" size={24} color="#fff" />
+                  </View>
+                  <View>
+                    <View style={styles.liveBadge}>
+                      <View style={styles.liveDot} />
+                      <Text style={styles.liveText}>LIVE 24/7</Text>
+                    </View>
+                    <Text style={styles.nowPlayingLabel}>Now Playing</Text>
+                  </View>
+                </View>
               </View>
-              <Text style={styles.cardLabel}>Now Playing</Text>
-              <Text style={styles.cardTitle}>{nowPlaying?.song?.title}</Text>
-              <Text style={styles.cardMeta}>Duration {formatDuration(nowPlaying?.duration)}</Text>
+              <View style={styles.nowPlayingTitleContainer}>
+                <Text style={styles.nowPlayingTitle}>
+                  {nowPlaying?.song?.title || ''}
+                </Text>
+              </View>
+              <View style={styles.nowPlayingMetaRow}>
+                <View style={styles.nowPlayingMetaItem}>
+                  <Ionicons name="time-outline" size={16} color="rgba(255,255,255,0.9)" />
+                  <Text style={styles.nowPlayingMeta}>
+                    Duration {formatDuration(nowPlaying?.duration)}
+                  </Text>
+                </View>
+              </View>
             </View>
 
             {nextTrack && (
               <View style={styles.nextCard}>
-                <Text style={[styles.cardLabel, styles.cardLabelAlt]}>Coming Up Next</Text>
-                <Text style={[styles.cardTitle, styles.cardTitleLight]} numberOfLines={2}>
+                <View style={styles.nextCardHeader}>
+                  <View style={styles.nextCardHeaderLeft}>
+                    <View style={styles.nextCardIcon}>
+                      <Ionicons name="radio-button-on" size={20} color="#fff" />
+                    </View>
+                    <View>
+                      <Text style={styles.nextCardLabel}>Coming Up Next</Text>
+                      <View style={styles.nextCardBadge}>
+                        <Text style={styles.nextCardBadgeText}>NEXT</Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+                <Text style={styles.nextCardTitle} numberOfLines={2}>
                   {nextTrack?.song?.title}
                 </Text>
-                <Text style={[styles.cardMeta, styles.cardMetaLight]}>
-                  {nextTrack?.song?.album || nextTrack?.playlist || '—'}
-                </Text>
+                <View style={styles.nextCardMetaRow}>
+                  <View style={styles.nextCardMetaItem}>
+                    <Ionicons name="musical-notes-outline" size={14} color="#4c6b5f" />
+                    <Text style={styles.nextCardMeta}>
+                      {nextTrack?.song?.album || nextTrack?.playlist || '—'}
+                    </Text>
+                  </View>
+                </View>
               </View>
             )}
           </View>
@@ -483,10 +824,44 @@ const RadioScreen = () => {
           ))}
         </View>
 
-        {/* Status Indicator */}
-        <Text style={[styles.status, { color: isPlaying ? BRAND_COLORS.accent : '#dc3545' }]}>
-          {isPlaying ? "Playing 🎵" : "Paused"}
-        </Text>
+        {/* Status Indicator with Animated Icon */}
+        <View style={styles.statusContainer}>
+          <View style={styles.statusContent}>
+            <View style={styles.statusIconWrapper}>
+              {isPlaying && (
+                <Animated.View
+                  style={[
+                    styles.statusPulseRing,
+                    {
+                      transform: [{ scale: pulseAnim }],
+                      opacity: pulseAnim.interpolate({
+                        inputRange: [1, 1.3],
+                        outputRange: [0.4, 0],
+                      }),
+                    },
+                  ]}
+                />
+              )}
+              <Animated.View
+                style={[
+                  styles.statusIconContainer,
+                  {
+                    transform: [{ scale: pulseAnim }],
+                  },
+                ]}
+              >
+                <Ionicons 
+                  name="radio" 
+                  size={24} 
+                  color={isPlaying ? BRAND_COLORS.accent : '#94a3a0'} 
+                />
+              </Animated.View>
+            </View>
+            <Text style={[styles.statusText, { color: isPlaying ? BRAND_COLORS.accent : '#94a3a0' }]}>
+              {isPlaying ? 'Playing' : 'Paused'}
+            </Text>
+          </View>
+        </View>
 
         {/* Controls Box */}
         <View style={styles.controlsBox}>
@@ -505,31 +880,69 @@ const RadioScreen = () => {
 
           {scheduleItems.length > 0 && (
             <View style={styles.scheduleSection}>
-              <View style={styles.scheduleHeader}>
-                <View>
-                  <Text style={styles.scheduleLabel}>Schedule</Text>
-                  <Text style={styles.scheduleTitle}>Coming Up</Text>
+              <View style={styles.scheduleHeaderContainer}>
+                <View style={styles.scheduleHeader}>
+                  <View style={styles.scheduleHeaderLeft}>
+                    <View style={styles.scheduleHeaderIcon}>
+                      <Ionicons name="calendar" size={24} color={BRAND_COLORS.primary} />
+                    </View>
+                    <View>
+                      <Text style={styles.scheduleLabel}>Schedule</Text>
+                      <Text style={styles.scheduleTitle}>Coming Up</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity onPress={fetchNowPlaying} style={styles.refreshButton}>
+                    <Ionicons name="refresh" size={20} color={BRAND_COLORS.primary} />
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity onPress={fetchNowPlaying} style={styles.refreshButton}>
-                  <Ionicons name="refresh" size={22} color={BRAND_COLORS.primary} />
-                </TouchableOpacity>
+                <View style={styles.timezoneContainer}>
+                  <Ionicons name="time-outline" size={14} color="#4c6b5f" />
+                  <Text style={styles.timezoneNote}>All times in London timezone (GMT/BST)</Text>
+                </View>
               </View>
-              <Text style={styles.timezoneNote}>All times in London timezone (GMT/BST)</Text>
-              {scheduleItems.map((item) => (
+              {scheduleItems.map((item, index) => (
                 <View
                   key={item.id}
                   style={[
                     styles.scheduleCard,
                     item.status === 'upcoming' && styles.scheduleCardActive,
+                    index === scheduleItems.length - 1 && styles.scheduleCardLast,
                   ]}
                 >
-                  <View style={styles.scheduleIcon}>
-                    <Ionicons name="time" size={20} color="#fff" />
+                  <View style={[
+                    styles.scheduleIcon,
+                    item.status === 'upcoming' && styles.scheduleIconActive,
+                  ]}>
+                    <Ionicons 
+                      name={item.status === 'upcoming' ? 'radio-button-on' : 'time'} 
+                      size={item.status === 'upcoming' ? 24 : 20} 
+                      color="#fff" 
+                    />
                   </View>
                   <View style={styles.scheduleInfo}>
-                    <Text style={styles.scheduleItemTitle}>{item.title}</Text>
-                    <Text style={styles.scheduleTime}>{item.timeRange}</Text>
-                    <Text style={styles.scheduleDay}>{item.day}</Text>
+                    <View style={styles.scheduleTitleRow}>
+                      <Text style={[
+                        styles.scheduleItemTitle,
+                        item.status === 'upcoming' && styles.scheduleItemTitleActive,
+                      ]} numberOfLines={2}>
+                        {item.title}
+                      </Text>
+                      {item.status === 'upcoming' && (
+                        <View style={styles.upcomingBadge}>
+                          <Text style={styles.upcomingBadgeText}>NEXT</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.scheduleMetaRow}>
+                      <View style={styles.scheduleMetaItem}>
+                        <Ionicons name="time-outline" size={14} color="#4c6b5f" />
+                        <Text style={styles.scheduleTime}>{item.timeRange}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.scheduleDayRow}>
+                      <Ionicons name="calendar-outline" size={14} color="#15A97A" />
+                      <Text style={styles.scheduleDay}>{item.day}</Text>
+                    </View>
                   </View>
                 </View>
               ))}
@@ -583,31 +996,99 @@ const styles = StyleSheet.create({
   },
   nowPlayingCard: {
     backgroundColor: BRAND_COLORS.secondary,
-    padding: 18,
+    padding: 20,
     borderRadius: 24,
     marginBottom: 16,
     shadowColor: '#0d4130',
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  nowPlayingHeader: {
+    marginBottom: 14,
+  },
+  nowPlayingHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  nowPlayingIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   liveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    backgroundColor: 'rgba(255, 77, 79, 0.25)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    marginBottom: 8,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 77, 79, 0.4)',
   },
   liveDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: '#ff4d4f',
     marginRight: 6,
+    shadowColor: '#ff4d4f',
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 0 },
   },
   liveText: {
     color: '#fff',
     fontWeight: 'bold',
-    letterSpacing: 1,
+    letterSpacing: 1.2,
+    fontSize: 11,
+  },
+  nowPlayingLabel: {
+    color: 'rgba(255,255,255,0.9)',
+    textTransform: 'uppercase',
+    fontSize: 11,
+    letterSpacing: 1.5,
+    fontWeight: '600',
+  },
+  nowPlayingTitleContainer: {
+    marginBottom: 14,
+  },
+  nowPlayingTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '700',
+    lineHeight: 26,
+  },
+  nowPlayingMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  nowPlayingMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  nowPlayingMeta: {
+    marginLeft: 8,
+    color: 'rgba(255,255,255,0.95)',
+    fontSize: 13,
+    fontWeight: '600',
   },
   cardLabel: {
     color: 'rgba(255,255,255,0.8)',
@@ -636,14 +1117,82 @@ const styles = StyleSheet.create({
   },
   nextCard: {
     backgroundColor: '#fff',
-    padding: 16,
+    padding: 20,
     borderRadius: 24,
-    shadowColor: '#0d4130',
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
+    shadowColor: BRAND_COLORS.accent,
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: BRAND_COLORS.accent,
+    elevation: 4,
+  },
+  nextCardHeader: {
+    marginBottom: 12,
+  },
+  nextCardHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  nextCardIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: BRAND_COLORS.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    shadowColor: BRAND_COLORS.accent,
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  nextCardLabel: {
+    color: BRAND_COLORS.textDark,
+    textTransform: 'uppercase',
+    fontSize: 11,
+    letterSpacing: 1.5,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  nextCardBadge: {
+    backgroundColor: BRAND_COLORS.accent,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
+  },
+  nextCardBadgeText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  nextCardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: BRAND_COLORS.primary,
+    marginBottom: 12,
+    lineHeight: 24,
+  },
+  nextCardMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  nextCardMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: BRAND_COLORS.background,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  nextCardMeta: {
+    marginLeft: 8,
+    color: '#4c6b5f',
+    fontSize: 13,
+    fontWeight: '600',
   },
   waveformContainer: {
     flexDirection: 'row',
@@ -658,6 +1207,45 @@ const styles = StyleSheet.create({
     backgroundColor: BRAND_COLORS.secondary,
     marginHorizontal: 3,
     borderRadius: 5,
+  },
+  statusContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+    minHeight: 70,
+  },
+  statusContent: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusIconWrapper: {
+    width: 50,
+    height: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+    marginTop: 8,
+    position: 'relative',
+  },
+  statusIconContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+    position: 'relative',
+  },
+  statusPulseRing: {
+    position: 'absolute',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: BRAND_COLORS.accent,
+    zIndex: 1,
+  },
+  statusText: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 4,
   },
   status: {
     fontSize: 20,
@@ -689,83 +1277,187 @@ const styles = StyleSheet.create({
   },
   scheduleSection: {
     width: '100%',
-    marginTop: 24,
+    marginTop: 32,
     paddingHorizontal: 16,
+  },
+  scheduleHeaderContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#0d4130',
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#d6eee4',
   },
   scheduleHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 12,
+  },
+  scheduleHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  scheduleHeaderIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: BRAND_COLORS.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
   scheduleLabel: {
-    color: BRAND_COLORS.textDark,
+    color: '#4c6b5f',
     textTransform: 'uppercase',
-    fontSize: 12,
-    letterSpacing: 1,
+    fontSize: 11,
+    letterSpacing: 1.5,
+    fontWeight: '600',
+    marginBottom: 2,
   },
   scheduleTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
     color: BRAND_COLORS.textDark,
   },
   refreshButton: {
-    backgroundColor: '#fff',
-    padding: 10,
-    borderRadius: 16,
+    backgroundColor: BRAND_COLORS.background,
+    padding: 12,
+    borderRadius: 12,
     shadowColor: '#0d4130',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  timezoneContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: BRAND_COLORS.background,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginTop: 4,
   },
   timezoneNote: {
     color: '#4c6b5f',
     fontSize: 12,
-    marginBottom: 10,
+    marginLeft: 6,
+    fontWeight: '500',
   },
   scheduleCard: {
     flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    marginBottom: 10,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    alignItems: 'flex-start',
+    padding: 18,
+    marginBottom: 12,
+    backgroundColor: '#fff',
     borderRadius: 20,
     shadowColor: '#0d4130',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
-    borderWidth: 1,
+    elevation: 3,
+    borderWidth: 1.5,
     borderColor: '#e2f2ea',
   },
   scheduleCardActive: {
     borderColor: BRAND_COLORS.accent,
     backgroundColor: '#fff',
+    borderWidth: 2,
+    shadowColor: BRAND_COLORS.accent,
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+  },
+  scheduleCardLast: {
+    marginBottom: 0,
   },
   scheduleIcon: {
-    width: 48,
-    height: 48,
+    width: 52,
+    height: 52,
     borderRadius: 16,
     backgroundColor: BRAND_COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 14,
+    marginRight: 16,
+    shadowColor: BRAND_COLORS.primary,
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  scheduleIconActive: {
+    backgroundColor: BRAND_COLORS.accent,
+    shadowColor: BRAND_COLORS.accent,
   },
   scheduleInfo: {
     flex: 1,
+    paddingTop: 2,
+  },
+  scheduleTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
   },
   scheduleItemTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: BRAND_COLORS.textDark,
+    flex: 1,
+    lineHeight: 22,
+  },
+  scheduleItemTitleActive: {
+    color: BRAND_COLORS.primary,
+  },
+  upcomingBadge: {
+    backgroundColor: BRAND_COLORS.accent,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 8,
+  },
+  upcomingBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  scheduleMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  scheduleMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: BRAND_COLORS.background,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
   },
   scheduleTime: {
-    marginTop: 4,
+    marginLeft: 6,
     color: '#4c6b5f',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  scheduleDayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
   },
   scheduleDay: {
-    marginTop: 2,
+    marginLeft: 6,
     color: '#15A97A',
-    fontWeight: '600',
+    fontWeight: '700',
+    fontSize: 13,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
 });
 

@@ -26,13 +26,15 @@ const friendlyName = (playlist) =>
   playlist ? playlist.charAt(0).toUpperCase() + playlist.slice(1) : 'Next Prayer';
 
 const formatCountdown = (diff) => {
-  const totalMinutes = Math.max(Math.round(diff.as('minutes')), 0);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours <= 0) {
-    return `${minutes}m`;
+  const totalSeconds = Math.max(Math.floor(diff.as('seconds')), 0);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds}s`;
   }
-  return `${hours}h ${minutes}m`;
+  return `${minutes}m ${seconds}s`;
 };
 
 const computePrayers = (entries, zone) => {
@@ -76,7 +78,7 @@ const computePrayers = (entries, zone) => {
     safety += 1;
   }
 
-  const countdown = adjustedDateTime.diff(now, ['hours', 'minutes']);
+  const countdown = adjustedDateTime.diff(now, ['hours', 'minutes', 'seconds']);
   const adjustedDateKey = adjustedDateTime.toFormat('yyyy-LL-dd');
   const daySchedule = daily[adjustedDateKey] || daily[nextEntry.start_date] || [];
 
@@ -85,6 +87,8 @@ const computePrayers = (entries, zone) => {
     time: adjustedDateTime.toFormat('h:mm a'),
     dateLabel: adjustedDateTime.toFormat('MMM dd'),
     countdownLabel: formatCountdown(countdown),
+    countdown: countdown,
+    nextDateTime: adjustedDateTime,
     daySchedule,
     dayLabel: adjustedDateTime.toFormat('EEEE'),
   };
@@ -200,6 +204,7 @@ const HomeScreen = () => {
     }, {})
   );
   const [latestBayans, setLatestBayans] = useState([]);
+  const [currentTime, setCurrentTime] = useState(DateTime.now());
   const navigation = useNavigation();
 
   useEffect(() => {
@@ -228,6 +233,34 @@ const HomeScreen = () => {
         setLatestBayans(sorted.slice(0, 3));
       })
       .catch(() => setLatestBayans([]));
+  }, []);
+
+  // Update countdown every second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(DateTime.now());
+      
+      // Recalculate countdown for each prayer source
+      setPrayerState((prev) => {
+        const updated = { ...prev };
+        PRAYER_SOURCES.forEach((source) => {
+          if (updated[source.id]?.data?.nextDateTime) {
+            const now = DateTime.now().setZone(source.timeZone);
+            const countdown = updated[source.id].data.nextDateTime.diff(now, ['hours', 'minutes', 'seconds']);
+            updated[source.id] = {
+              ...updated[source.id],
+              data: {
+                ...updated[source.id].data,
+                countdownLabel: formatCountdown(countdown),
+              },
+            };
+          }
+        });
+        return updated;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const [activeTab, setActiveTab] = useState(PRAYER_SOURCES[0].id);
