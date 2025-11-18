@@ -269,7 +269,7 @@ const RadioScreen = () => {
     navigation.setOptions({
       title: 'Radio',
       headerTitleAlign: 'center',
-      headerTitleStyle: { fontSize: 24, fontWeight: 'bold' },
+      headerTitleStyle: { fontSize: 18, fontWeight: '600' },
     });
   }, [navigation]);
 

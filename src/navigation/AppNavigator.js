@@ -71,17 +71,21 @@ export default function AppNavigator() {
             headerTitleAlign: 'center',
             headerStyle: {
               backgroundColor: brandColors.primary,
-              height: 56 + insets.top,
+              height: Platform.OS === 'android' ? 40 + insets.top : 10 + insets.top,
+              borderTopWidth: 2,
+              borderTopColor: brandColors.secondary,
             },
             headerStatusBarHeight: 0,
             headerTitleContainerStyle: {
-              paddingTop: Platform.OS === 'ios' ? Math.max(insets.top - 32, 0) : Math.max(insets.top - 24, 0),
+              paddingTop: Platform.OS === 'android' ? 12 : 6,
+              paddingBottom: Platform.OS === 'android' ? 15 : 0,
             },
             headerLeftContainerStyle: {
-              paddingTop: Platform.OS === 'ios' ? Math.max(insets.top - 32, 0) : Math.max(insets.top - 24, 0),
+              paddingTop: Platform.OS === 'android' ? 12 : 6,
+              paddingBottom: Platform.OS === 'android' ? 15 : 0,
             },
             headerTintColor: brandColors.textOnPrimary,
-            headerTitleStyle: { fontWeight: '600', fontSize: 20 },
+            headerTitleStyle: { fontWeight: '600', fontSize: 18 },
             drawerActiveTintColor: brandColors.primary,
             drawerInactiveTintColor: brandColors.textMuted,
             drawerLabelStyle: { fontSize: 15, fontWeight: '600', marginLeft: 0, marginRight: 0 },
@@ -113,17 +117,14 @@ export default function AppNavigator() {
           }}
           drawerContent={(props) => (
             <View style={{ flex: 1, backgroundColor: '#ffffff', paddingTop: 0, paddingHorizontal: 0, marginHorizontal: 0, overflow: 'visible' }}>
-              {Platform.OS === 'ios' && (
-                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: insets.top, backgroundColor: brandColors.primary, zIndex: 2 }} />
-              )}
-              <View style={[styles.drawerHeader, { top: 0, left: 0, right: 0, paddingTop: insets.top, minHeight: insets.top + 140, backgroundColor: Platform.OS === 'ios' ? brandColors.primary : 'transparent' }]}>
+              <View style={[styles.drawerHeader, { top: 0, left: 0, right: 0, paddingTop: 0, minHeight: insets.top + 100, backgroundColor: Platform.OS === 'ios' ? brandColors.primary : 'transparent' }]}>
                 <Image
                   source={require('../../assets/images/tashkeel_banner.jpg')}
-                  style={[styles.drawerBanner, { marginTop: -insets.top, height: insets.top + 140 }]}
+                  style={[styles.drawerBanner, { marginTop: 0, height: insets.top + 100 }]}
                   resizeMode="cover"
                 />
                 <View style={styles.drawerBannerOverlay} />
-                <View style={[styles.drawerLogoWrapper, { top: insets.top + 8 }]}>
+                <View style={[styles.drawerLogoWrapper, { top: Math.max(insets.top - 50, 0) }]}>
                   <Image
                     source={require('../../assets/images/icon.png')}
                     style={styles.drawerLogo}
@@ -140,7 +141,7 @@ export default function AppNavigator() {
                   paddingLeft: 0,
                   paddingRight: 0,
                   paddingBottom: 100,
-                  paddingTop: insets.top + 140,
+                  paddingTop: insets.top + 100,
                   paddingHorizontal: 0,
                 }}
                 style={{ flex: 1, paddingHorizontal: 0, paddingLeft: 0, paddingRight: 0 }}
@@ -252,7 +253,7 @@ const styles = StyleSheet.create({
   },
   drawerBanner: {
     width: '100%',
-    height: 140,
+    height: 100,
     resizeMode: 'cover',
   },
   drawerBannerOverlay: {

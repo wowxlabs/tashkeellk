@@ -32,9 +32,9 @@ const formatCountdown = (diff) => {
   const seconds = totalSeconds % 60;
   
   if (hours > 0) {
-    return `${hours}h ${minutes}m ${seconds}`;
+    return `${hours}h ${minutes}m ${seconds}s`;
   }
-  return `${minutes}m ${seconds}`;
+  return `${minutes}m ${seconds}s`;
 };
 
 const computePrayers = (entries, zone) => {
@@ -123,7 +123,8 @@ const PrayerCard = ({ label, accent, data, loading, error }) => {
               <View style={styles.infoRow}>
                 <Ionicons name="time" size={16} color="#d0f0e4" />
                 <Text style={styles.infoText}>{data?.time}</Text>
-                <Text style={styles.dot}>•</Text>
+              </View>
+              <View style={[styles.infoRow, { marginTop: 4 }]}>
                 <Ionicons name="calendar" size={16} color="#d0f0e4" />
                 <Text style={styles.infoText}>{data?.dateLabel}</Text>
               </View>
@@ -413,14 +414,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 16,
-    marginLeft: 20,
-    marginTop: -8,
-    alignSelf: 'flex-start',
+    marginLeft: 8,
     borderWidth: 2,
+    minWidth: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   countdownText: {
     color: '#fff',
     fontWeight: '600',
+    textAlign: 'center',
   },
   scheduleList: {
     marginTop: 12,

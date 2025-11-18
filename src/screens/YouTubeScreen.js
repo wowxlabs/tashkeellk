@@ -28,7 +28,7 @@ const YouTubeScreen = () => {
     navigation.setOptions({
       title: 'Bayans',
       headerTitleAlign: 'center',
-      headerTitleStyle: { fontSize: 30, fontWeight: 'bold' },
+      headerTitleStyle: { fontSize: 18, fontWeight: '600' },
     });
     fetchLocalVideos();
   }, []);
