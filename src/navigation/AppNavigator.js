@@ -29,6 +29,9 @@ export default function AppNavigator() {
   useEffect(() => {
     if (Platform.OS === 'android') {
       SystemUI.setBackgroundColorAsync(brandColors.primary);
+    } else if (Platform.OS === 'ios') {
+      // Set status bar background color for iOS
+      SystemUI.setBackgroundColorAsync(brandColors.primary);
     }
   }, []);
 
@@ -61,7 +64,7 @@ export default function AppNavigator() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <StatusBar style="light" backgroundColor={brandColors.primary} translucent={true} />
+      <StatusBar style="light" backgroundColor={brandColors.primary} translucent={Platform.OS === 'ios' ? false : true} />
       <NavigationContainer theme={navigationTheme}>
         <Drawer.Navigator
           screenOptions={{
@@ -72,10 +75,10 @@ export default function AppNavigator() {
             },
             headerStatusBarHeight: 0,
             headerTitleContainerStyle: {
-              paddingTop: Math.max(insets.top - 24, 0),
+              paddingTop: Platform.OS === 'ios' ? Math.max(insets.top - 32, 0) : Math.max(insets.top - 24, 0),
             },
             headerLeftContainerStyle: {
-              paddingTop: Math.max(insets.top - 24, 0),
+              paddingTop: Platform.OS === 'ios' ? Math.max(insets.top - 32, 0) : Math.max(insets.top - 24, 0),
             },
             headerTintColor: brandColors.textOnPrimary,
             headerTitleStyle: { fontWeight: '600', fontSize: 20 },
@@ -110,7 +113,10 @@ export default function AppNavigator() {
           }}
           drawerContent={(props) => (
             <View style={{ flex: 1, backgroundColor: '#ffffff', paddingTop: 0, paddingHorizontal: 0, marginHorizontal: 0, overflow: 'visible' }}>
-              <View style={[styles.drawerHeader, { top: 0, left: 0, right: 0, paddingTop: insets.top, minHeight: insets.top + 140 }]}>
+              {Platform.OS === 'ios' && (
+                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: insets.top, backgroundColor: brandColors.primary, zIndex: 2 }} />
+              )}
+              <View style={[styles.drawerHeader, { top: 0, left: 0, right: 0, paddingTop: insets.top, minHeight: insets.top + 140, backgroundColor: Platform.OS === 'ios' ? brandColors.primary : 'transparent' }]}>
                 <Image
                   source={require('../../assets/images/tashkeel_banner.jpg')}
                   style={[styles.drawerBanner, { marginTop: -insets.top, height: insets.top + 140 }]}

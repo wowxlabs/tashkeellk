@@ -32,9 +32,9 @@ const formatCountdown = (diff) => {
   const seconds = totalSeconds % 60;
   
   if (hours > 0) {
-    return `${hours}h ${minutes}m ${seconds}s`;
+    return `${hours}h ${minutes}m ${seconds}`;
   }
-  return `${minutes}m ${seconds}s`;
+  return `${minutes}m ${seconds}`;
 };
 
 const computePrayers = (entries, zone) => {
@@ -128,7 +128,7 @@ const PrayerCard = ({ label, accent, data, loading, error }) => {
                 <Text style={styles.infoText}>{data?.dateLabel}</Text>
               </View>
             </View>
-            <View style={styles.countdownPill}>
+            <View style={[styles.countdownPill, { borderColor: accent }]}>
               <Text style={styles.countdownText}>{data?.countdownLabel}</Text>
             </View>
           </View>
@@ -388,6 +388,7 @@ const styles = StyleSheet.create({
   },
   detailColumn: {
     flex: 1,
+    marginRight: 12,
   },
   nextLabel: {
     color: '#fff',
@@ -412,6 +413,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 16,
+    marginLeft: 20,
+    marginTop: -8,
+    alignSelf: 'flex-start',
+    borderWidth: 2,
   },
   countdownText: {
     color: '#fff',
