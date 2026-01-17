@@ -10,6 +10,7 @@ import * as SystemUI from 'expo-system-ui';
 import RadioScreen from '../screens/RadioScreen';
 import YouTubeScreen from '../screens/YouTubeScreen';
 import HomeScreen from '../screens/HomeScreen';
+import QiblaScreen from '../screens/QiblaScreen';
 const Drawer = createDrawerNavigator();
 
 const brandColors = {
@@ -228,6 +229,13 @@ export default function AppNavigator() {
             component={RadioScreen}
             options={{
               drawerIcon: ({ color, size }) => <Ionicons name="radio" size={size} color={color} />,
+            }}
+          />
+          <Drawer.Screen
+            name="Qibla Finder"
+            component={QiblaScreen}
+            options={{
+              drawerIcon: ({ color, size }) => <Ionicons name="compass" size={size} color={color} />,
             }}
           />
         </Drawer.Navigator>
