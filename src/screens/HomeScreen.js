@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Image, ScrollView } from 'react-native';
 import axios from 'axios';
 import { DateTime } from 'luxon';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { getSelectedLocation } from '../services/prayerReminders';
 
 const PRAYER_SOURCES = [
   {
@@ -205,7 +206,25 @@ const HomeScreen = () => {
     }, {})
   );
   const [latestBayans, setLatestBayans] = useState([]);
+  const [activeTab, setActiveTab] = useState(PRAYER_SOURCES[0].id);
   const navigation = useNavigation();
+
+  // Load selected location from prayer reminders settings
+  useEffect(() => {
+    const loadSelectedLocation = async () => {
+      try {
+        const location = await getSelectedLocation();
+        // Validate that the location exists in PRAYER_SOURCES
+        const validLocation = PRAYER_SOURCES.find(src => src.id === location);
+        if (validLocation) {
+          setActiveTab(location);
+        }
+      } catch (error) {
+        console.error('Error loading selected location:', error);
+      }
+    };
+    loadSelectedLocation();
+  }, []);
 
   useEffect(() => {
     PRAYER_SOURCES.forEach((source) => {
@@ -261,7 +280,25 @@ const HomeScreen = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const [activeTab, setActiveTab] = useState(PRAYER_SOURCES[0].id);
+  // Reload selected location when screen is focused (e.g., after changing in Prayer Reminders)
+  // Only reset to saved location when screen is focused, not when activeTab changes
+  useFocusEffect(
+    useCallback(() => {
+      const loadSelectedLocation = async () => {
+        try {
+          const location = await getSelectedLocation();
+          const validLocation = PRAYER_SOURCES.find(src => src.id === location);
+          if (validLocation) {
+            setActiveTab(location);
+          }
+        } catch (error) {
+          console.error('Error loading selected location:', error);
+        }
+      };
+      loadSelectedLocation();
+    }, []) // Empty dependency array - only run when screen is focused
+  );
+
   const activeSource = PRAYER_SOURCES.find((src) => src.id === activeTab);
   const activeState = prayerState[activeTab];
 
