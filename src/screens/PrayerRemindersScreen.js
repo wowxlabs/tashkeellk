@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Platform,
+  Modal,
 } from 'react-native';
 import { Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
@@ -23,7 +25,9 @@ import {
   getAdhanSoundOptions,
   schedulePrayerReminders,
   getScheduledPrayerReminders,
+  getAdhanSoundFilename,
 } from '../services/prayerReminders';
+import * as Notifications from 'expo-notifications';
 import { logPrayerReminderToggle, logPrayerLocationChange, logAdhanSoundChange } from '../services/analytics';
 
 const BRAND_COLORS = {
@@ -63,6 +67,7 @@ const PrayerRemindersScreen = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [playingSoundId, setPlayingSoundId] = useState(null);
+  const [showTestModal, setShowTestModal] = useState(false);
   const soundRef = useRef(null);
 
   useEffect(() => {
@@ -192,13 +197,91 @@ const PrayerRemindersScreen = () => {
   const handleTestNotification = async () => {
     try {
       setSaving(true);
-      const scheduled = await getScheduledPrayerReminders();
-      Alert.alert(
-        'Prayer Reminders',
-        `${scheduled.length} prayer reminder(s) scheduled.\n\nNext reminder will appear at the configured time.`
-      );
+      
+      // Schedule a test notification for 5 seconds from now
+      const testDate = new Date();
+      testDate.setSeconds(testDate.getSeconds() + 5);
+      
+      // Get the selected sound
+      const soundFilename = await getAdhanSoundFilename();
+      const soundOptions = getAdhanSoundOptions();
+      const selectedSound = soundOptions.find(s => s.id === adhanSoundId);
+      
+      // Prepare sound URI (same pattern as prayer reminders)
+      const soundUri = soundFilename
+        ? Platform.OS === 'ios'
+          ? soundFilename.replace('.wav', '.caf')
+          : soundFilename
+        : 'default';
+      
+      console.log('🔊 Test notification sound config:', {
+        soundFilename,
+        soundUri,
+        platform: Platform.OS,
+      });
+      
+      // Ensure channel is set up with the correct sound (Android only) - like masjid app
+      let testChannelId = 'prayer-reminders-default';
+      if (Platform.OS === 'android') {
+        const soundWithoutExt = soundFilename
+          ? soundFilename.replace(/\.\w+$/, '')
+          : 'default';
+        testChannelId = `prayer-reminders-${soundWithoutExt}`;
+        
+        try {
+          await Notifications.deleteNotificationChannelAsync(testChannelId);
+          console.log(`🗑️ Deleted existing ${testChannelId} channel`);
+        } catch (_e) {
+          // Channel might not exist, ignore
+        }
+        await Notifications.setNotificationChannelAsync(testChannelId, {
+          name: 'Prayer Reminders',
+          importance: Notifications.AndroidImportance.HIGH,
+          vibrationPattern: [0, 250, 250, 250],
+          enableVibrate: true,
+          sound: soundWithoutExt === 'default' ? undefined : soundWithoutExt, // Without extension, like masjid app
+          showBadge: false,
+        });
+        console.log(`✅ Test notification channel created: ${testChannelId} with sound: ${soundWithoutExt}`);
+        
+        // Small delay to ensure channel is fully created
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      // Prepare notification content (like masjid app)
+      const notificationContent = {
+        title: 'Test Prayer Reminder',
+        body: `This is a test notification. Your selected sound is: ${selectedSound?.name || 'Adhan 1'}`,
+        data: { type: 'test', prayerName: 'Test' },
+        priority: Notifications.AndroidNotificationPriority.HIGH,
+        ...(Platform.OS === 'android' && {
+          color: '#ffffff', // White accent color for Android
+        }),
+      };
+
+      // Set sound based on platform (like masjid app)
+      if (Platform.OS === 'ios') {
+        notificationContent.sound = soundUri; // iOS: Use filename with extension
+      }
+      // Android: Do NOT set sound in content – let the channel decide
+
+      console.log('📦 Notification content before scheduling:', JSON.stringify(notificationContent, null, 2));
+
+      // Schedule the test notification
+      // In expo-notifications, channelId goes in the trigger (like masjid app)
+      await Notifications.scheduleNotificationAsync({
+        content: notificationContent,
+        trigger: {
+          type: 'date',
+          date: testDate,
+          ...(Platform.OS === 'android' && { channelId: testChannelId }),
+        },
+      });
+
+      setShowTestModal(true);
     } catch (error) {
-      Alert.alert('Error', 'Failed to check scheduled reminders.');
+      console.error('Error scheduling test notification:', error);
+      Alert.alert('Error', 'Failed to schedule test notification. Please check notification permissions.');
     } finally {
       setSaving(false);
     }
@@ -365,10 +448,34 @@ const PrayerRemindersScreen = () => {
         ) : (
           <>
             <Ionicons name="notifications-outline" size={20} color={BRAND_COLORS.textLight} />
-            <Text style={styles.testButtonText}>Check Scheduled Reminders</Text>
+            <Text style={styles.testButtonText}>Test Notification (5 seconds)</Text>
           </>
         )}
       </TouchableOpacity>
+
+      {/* Test Notification Success Modal */}
+      <Modal
+        visible={showTestModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowTestModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Ionicons name="checkmark-circle" size={48} color={BRAND_COLORS.primary} style={styles.modalIcon} />
+            <Text style={styles.modalTitle}>Test Notification Scheduled</Text>
+            <Text style={styles.modalMessage}>
+              A test notification will appear in 5 seconds. Make sure your device is not on silent mode.
+            </Text>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setShowTestModal(false)}
+            >
+              <Text style={styles.modalButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 };
@@ -521,6 +628,55 @@ const styles = StyleSheet.create({
     color: BRAND_COLORS.textLight,
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 24,
+    width: '80%',
+    maxWidth: 400,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  modalIcon: {
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: BRAND_COLORS.textDark,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  modalMessage: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  modalButton: {
+    backgroundColor: BRAND_COLORS.primary,
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 8,
+    minWidth: 100,
+  },
+  modalButtonText: {
+    color: BRAND_COLORS.textLight,
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
 });
 

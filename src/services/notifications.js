@@ -253,13 +253,24 @@ export async function initializeNotifications() {
     // Configure Android notification channel (required for Android 8.0+) BEFORE listeners
     // Use "default" channel name to match Expo's default when backend doesn't send channelId
     if (Platform.OS === 'android') {
+      // Delete default channel first (if it exists) so we can recreate it with proper sound
+      // Channels are immutable, so we need to delete and recreate to change sound
+      try {
+        await Notifications.deleteNotificationChannelAsync('default');
+        console.log('🗑️ Deleted existing default channel');
+      } catch (_e) {
+        // Channel might not exist, ignore
+      }
+      
       // Create default channel (used when backend doesn't specify channelId)
+      // Note: Don't set sound here - let notification content specify it
+      // Setting sound: true forces default system sound and blocks custom sounds
       await Notifications.setNotificationChannelAsync('default', {
         name: 'Tashkeel Notifications',
         importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0, 250, 250, 250],
         enableVibrate: true,
-        sound: true,
+        // Don't set sound here - allow notification content to specify custom sounds
         showBadge: false,
       });
       console.log('✅ Android notification channel created: default');

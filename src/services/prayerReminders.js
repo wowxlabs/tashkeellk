@@ -216,20 +216,30 @@ async function scheduleSinglePrayerNotification(prayerName, prayerDateTime, minu
     const notificationContent = {
       title: `${prayerName} Prayer Reminder`,
       body: `${prayerName} prayer is in ${minutesBefore} minute${minutesBefore !== 1 ? 's' : ''}`,
-      sound: soundUri,
       data: {
         prayerName,
         prayerTime: prayerDateTime.toISO(),
         type: 'prayer_reminder',
       },
+      ...(Platform.OS === 'android' && {
+        color: '#ffffff', // White accent color for Android
+      }),
     };
 
+    // Set sound based on platform (like masjid app)
+    if (Platform.OS === 'ios') {
+      notificationContent.sound = soundUri; // iOS: Use filename with extension
+    }
+    // Android: Do NOT set sound in content – let the channel decide
+
     // Schedule notification
+    // In expo-notifications, channelId goes in the trigger (like masjid app)
     await Notifications.scheduleNotificationAsync({
       content: notificationContent,
       trigger: {
         type: 'date',
         date: notificationTime.toJSDate(),
+        ...(Platform.OS === 'android' && { channelId: currentChannelId }),
       },
       identifier,
     });
@@ -298,6 +308,52 @@ async function getPrayerTimesForDate(targetDate, location) {
   }
 }
 
+// Current channel ID for Android notifications (dynamic based on selected sound)
+let currentChannelId = 'prayer-reminders-default';
+
+// Helper function to get channel ID for a given sound filename
+function getChannelIdForSound(soundFilename) {
+  const soundWithoutExt = soundFilename
+    ? soundFilename.replace(/\.\w+$/, '')
+    : 'default';
+  return `prayer-reminders-${soundWithoutExt}`;
+}
+
+// Ensure notification channel is set up with the correct sound (Android only)
+async function ensurePrayerReminderChannel(soundFilename) {
+  if (Platform.OS !== 'android') return;
+  
+  try {
+    const soundWithoutExt = soundFilename
+      ? soundFilename.replace(/\.\w+$/, '')
+      : 'default';
+
+    const channelId = getChannelIdForSound(soundFilename);
+    currentChannelId = channelId;
+    
+    // Delete existing channel to recreate with new sound (channels are immutable)
+    try {
+      await Notifications.deleteNotificationChannelAsync(channelId);
+    } catch (_e) {
+      // Channel might not exist, ignore
+    }
+    
+    // Create channel with the custom sound (without extension, like masjid app)
+    await Notifications.setNotificationChannelAsync(channelId, {
+      name: 'Prayer Reminders',
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
+      enableVibrate: true,
+      sound: soundWithoutExt === 'default' ? undefined : soundWithoutExt,
+      showBadge: false,
+    });
+    
+    console.log(`✅ Prayer reminder channel configured: ${channelId} with sound: ${soundWithoutExt}`);
+  } catch (error) {
+    console.error('Error setting up prayer reminder channel:', error);
+  }
+}
+
 // Schedule all prayer reminders
 export async function schedulePrayerReminders() {
   try {
@@ -307,6 +363,10 @@ export async function schedulePrayerReminders() {
     const toggles = await getPrayerReminderToggles();
     const minutesBefore = await getPrayerReminderMinutesBefore();
     const soundFilename = await getAdhanSoundFilename();
+    
+    // Ensure channel is set up with the correct sound (Android only)
+    await ensurePrayerReminderChannel(soundFilename);
+    
     const location = await getSelectedLocation();
     const config = PRAYER_API_URLS[location];
     const now = DateTime.now().setZone(config.timeZone);
