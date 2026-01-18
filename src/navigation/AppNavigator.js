@@ -221,9 +221,9 @@ export default function AppNavigator() {
                 </View>
               </DrawerContentScrollView>
               <View style={[styles.drawerFooter, { position: 'absolute', bottom: 0, left: 0, right: 0, paddingBottom: Math.min(insets.bottom || 4, 8) }]}>
-                <Text style={styles.footerText}>Version 1.0.1</Text>
+                <Text style={styles.footerText}>Version 1.0.3</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 4 }}>
-                  <Text style={styles.footerSubText}>© 2025 </Text>
+                  <Text style={styles.footerSubText}>© {new Date().getFullYear()} </Text>
                   <TouchableOpacity onPress={() => Linking.openURL('https://www.tashkeel.lk')}>
                     <Text style={[styles.footerSubText, styles.footerLink]}>Tashkeel Media</Text>
                   </TouchableOpacity>
