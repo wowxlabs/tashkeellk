@@ -25,6 +25,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.tashkeellk.Tashkeellk",
+      "googleServicesFile": "./json/google-services.json",
       "permissions": [
         "INTERNET",
         "FOREGROUND_SERVICE",
@@ -46,7 +47,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true

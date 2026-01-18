@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "239709902832",
+    "project_id": "tashkeel-ad13f",
+    "storage_bucket": "tashkeel-ad13f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:239709902832:android:7937ef5305be986a7daf35",
+        "android_client_info": {
+          "package_name": "com.tashkeellk.Tashkeellk"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLdIV9NoC9Uc-mV6WDYYSQhLj5KA6ubIo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

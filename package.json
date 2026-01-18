@@ -48,7 +48,8 @@
     "react-native-youtube-iframe": "^2.3.0",
     "expo-location": "~18.0.10",
     "expo-sensors": "~14.0.2",
-    "expo-linear-gradient": "~14.0.2"
+    "expo-linear-gradient": "~14.0.2",
+    "expo-notifications": "~0.29.14"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
