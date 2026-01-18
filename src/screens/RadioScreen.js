@@ -255,6 +255,93 @@ const BRAND_COLORS = {
   textDark: '#0B4733',
 };
 
+// MarqueeText component for scrolling long text
+const MarqueeText = ({ text, style }) => {
+  const scrollX = useRef(new Animated.Value(0)).current;
+  const textWidthRef = useRef(0);
+  const containerWidthRef = useRef(0);
+  const [needsScroll, setNeedsScroll] = useState(false);
+  const animationRef = useRef(null);
+
+  useEffect(() => {
+    if (textWidthRef.current > containerWidthRef.current && containerWidthRef.current > 0) {
+      setNeedsScroll(true);
+      // Reset position
+      scrollX.setValue(0);
+      
+      // Start marquee animation
+      const scrollDistance = textWidthRef.current - containerWidthRef.current + 20; // 20px padding
+      const duration = Math.max(3000, scrollDistance * 20); // Adjust speed based on distance
+      
+      animationRef.current = Animated.loop(
+        Animated.sequence([
+          Animated.delay(1000), // Wait 1 second before starting
+          Animated.timing(scrollX, {
+            toValue: -scrollDistance,
+            duration: duration,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }),
+          Animated.delay(2000), // Pause at the end
+          Animated.timing(scrollX, {
+            toValue: 0,
+            duration: 500,
+            easing: Easing.ease,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      animationRef.current.start();
+    } else {
+      setNeedsScroll(false);
+      if (animationRef.current) {
+        animationRef.current.stop();
+      }
+      scrollX.setValue(0);
+    }
+
+    return () => {
+      if (animationRef.current) {
+        animationRef.current.stop();
+      }
+    };
+  }, [text, scrollX]);
+
+  const onTextLayout = (event) => {
+    textWidthRef.current = event.nativeEvent.layout.width;
+    if (containerWidthRef.current > 0) {
+      if (textWidthRef.current > containerWidthRef.current) {
+        setNeedsScroll(true);
+      }
+    }
+  };
+
+  const onContainerLayout = (event) => {
+    containerWidthRef.current = event.nativeEvent.layout.width;
+    if (textWidthRef.current > containerWidthRef.current) {
+      setNeedsScroll(true);
+    }
+  };
+
+  return (
+    <View style={{ overflow: 'hidden', flex: 1 }} onLayout={onContainerLayout}>
+      <Animated.View
+        style={{
+          transform: [{ translateX: scrollX }],
+        }}
+      >
+        <Text
+          style={style}
+          onLayout={onTextLayout}
+          numberOfLines={needsScroll ? undefined : 2}
+        >
+          {text}
+        </Text>
+      </Animated.View>
+    </View>
+  );
+};
+
 const RadioScreen = () => {
   const [sound, setSound] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -714,8 +801,14 @@ const RadioScreen = () => {
         logRadioStop();
       }
     } catch (error) {
-      // Ignore "Player does not exist" errors
-      if (error.message && error.message.includes('Player does not exist')) {
+      // Ignore errors when sound is not loaded or doesn't exist
+      const errorMessage = error.message || '';
+      if (
+        errorMessage.includes('Player does not exist') ||
+        errorMessage.includes('sound is not loaded') ||
+        errorMessage.includes('not loaded')
+      ) {
+        // Sound is already unloaded or doesn't exist, just reset state
         setSound(null);
         setIsPlaying(false);
         stopWaveform();
@@ -796,9 +889,10 @@ const RadioScreen = () => {
                     </View>
                   </View>
                 </View>
-                <Text style={styles.nextCardTitle} numberOfLines={2}>
-                  {nextTrack?.song?.title}
-                </Text>
+                <MarqueeText 
+                  text={nextTrack?.song?.title || ''}
+                  style={styles.nextCardTitle}
+                />
                 <View style={styles.nextCardMetaRow}>
                   <View style={styles.nextCardMetaItem}>
                     <Ionicons name="musical-notes-outline" size={14} color="#4c6b5f" />
@@ -979,7 +1073,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   title: {
-    fontSize: 28,
+    fontSize: 18,
     fontWeight: 'bold',
     color: BRAND_COLORS.textDark,
     marginBottom: 5,
@@ -987,7 +1081,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   description: {
-    fontSize: 16,
+    fontSize: 13,
     color: '#4c6b5f',
     marginBottom: 20,
     textAlign: 'center',
@@ -1069,9 +1163,9 @@ const styles = StyleSheet.create({
   },
   nowPlayingTitle: {
     color: '#fff',
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '700',
-    lineHeight: 26,
+    lineHeight: 22,
   },
   nowPlayingMetaRow: {
     flexDirection: 'row',
@@ -1090,7 +1184,7 @@ const styles = StyleSheet.create({
   nowPlayingMeta: {
     marginLeft: 8,
     color: 'rgba(255,255,255,0.95)',
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '600',
   },
   cardLabel: {
@@ -1105,7 +1199,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: 'bold',
   },
   cardTitleLight: {
@@ -1173,11 +1267,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   nextCardTitle: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '700',
     color: BRAND_COLORS.primary,
     marginBottom: 12,
-    lineHeight: 24,
+    lineHeight: 20,
   },
   nextCardMetaRow: {
     flexDirection: 'row',
@@ -1246,12 +1340,12 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   statusText: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '600',
     marginTop: 4,
   },
   status: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '600',
     marginBottom: 20,
   },
@@ -1324,7 +1418,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   scheduleTitle: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: 'bold',
     color: BRAND_COLORS.textDark,
   },
@@ -1408,11 +1502,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   scheduleItemTitle: {
-    fontSize: 17,
+    fontSize: 14,
     fontWeight: '700',
     color: BRAND_COLORS.textDark,
     flex: 1,
-    lineHeight: 22,
+    lineHeight: 19,
   },
   scheduleItemTitleActive: {
     color: BRAND_COLORS.primary,
