@@ -72,11 +72,11 @@ export default function AppNavigator() {
             headerTitleAlign: 'center',
             headerStyle: {
               backgroundColor: brandColors.primary,
-              height: Platform.OS === 'android' ? 40 + insets.top : 10 + insets.top,
+              height: Platform.OS === 'android' ? 56 + insets.top : 44 + insets.top,
               borderTopWidth: 2,
               borderTopColor: brandColors.secondary,
             },
-            headerStatusBarHeight: 0,
+            headerStatusBarHeight: Platform.OS === 'android' ? insets.top : insets.top,
             headerTitleContainerStyle: {
               paddingTop: Platform.OS === 'android' ? 12 : 6,
               paddingBottom: Platform.OS === 'android' ? 15 : 0,
@@ -118,14 +118,14 @@ export default function AppNavigator() {
           }}
           drawerContent={(props) => (
             <View style={{ flex: 1, backgroundColor: '#ffffff', paddingTop: 0, paddingHorizontal: 0, marginHorizontal: 0, overflow: 'visible' }}>
-              <View style={[styles.drawerHeader, { top: 0, left: 0, right: 0, paddingTop: 0, minHeight: insets.top + 100, backgroundColor: Platform.OS === 'ios' ? brandColors.primary : 'transparent' }]}>
+              <View style={[styles.drawerHeader, { top: 0, left: 0, right: 0, paddingTop: 0, minHeight: insets.top + 140, backgroundColor: Platform.OS === 'ios' ? brandColors.primary : 'transparent' }]}>
                 <Image
                   source={require('../../assets/images/tashkeel_banner.jpg')}
-                  style={[styles.drawerBanner, { marginTop: 0, height: insets.top + 100 }]}
+                  style={[styles.drawerBanner, { marginTop: 0, height: insets.top + 140 }]}
                   resizeMode="cover"
                 />
                 <View style={styles.drawerBannerOverlay} />
-                <View style={[styles.drawerLogoWrapper, { top: Math.max(insets.top - 50, 0) }]}>
+                <View style={[styles.drawerLogoWrapper, { top: Math.max(insets.top + 8, 16) }]}>
                   <Image
                     source={require('../../assets/images/icon.png')}
                     style={styles.drawerLogo}
@@ -142,7 +142,7 @@ export default function AppNavigator() {
                   paddingLeft: 0,
                   paddingRight: 0,
                   paddingBottom: 100,
-                  paddingTop: insets.top + 100,
+                  paddingTop: insets.top + 140,
                   paddingHorizontal: 0,
                 }}
                 style={{ flex: 1, paddingHorizontal: 0, paddingLeft: 0, paddingRight: 0 }}

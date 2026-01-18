@@ -65,6 +65,19 @@ const YouTubeScreen = () => {
     return match ? match[1] : '';
   };
 
+  const cleanMarkdown = (text) => {
+    if (!text) return '';
+    // Remove bold markdown (**)
+    let cleaned = text.replace(/\*\*(.*?)\*\*/g, '$1');
+    // Remove single asterisks
+    cleaned = cleaned.replace(/\*(.*?)\*/g, '$1');
+    // Remove markdown headers (#)
+    cleaned = cleaned.replace(/#+\s*/g, '');
+    // Convert markdown links to plain text (e.g., [text](url) -> text)
+    cleaned = cleaned.replace(/\[(.*?)\]\(.*?\)/g, '$1');
+    return cleaned.trim();
+  };
+
   const renderVideoCard = ({ item }) => (
     <TouchableOpacity style={styles.videoItem} onPress={() => setSelectedVideo(item)}>
       <Image source={{ uri: item.thumbnail }} style={styles.thumbnail} />
@@ -123,7 +136,7 @@ const YouTubeScreen = () => {
               <Text style={styles.metaLabel}>Published</Text>
               <Text style={styles.metaValue}>{new Date(selectedVideo.date).toDateString()}</Text>
               <Text style={[styles.metaLabel, styles.metaLabelSpacing]}>Description</Text>
-              <Text style={styles.metaValue}>{selectedVideo.description?.trim()}</Text>
+              <Text style={styles.metaValue}>{cleanMarkdown(selectedVideo.description)}</Text>
             </View>
           </View>
         </ScrollView>
