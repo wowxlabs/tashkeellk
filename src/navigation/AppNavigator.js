@@ -11,6 +11,7 @@ import RadioScreen from '../screens/RadioScreen';
 import YouTubeScreen from '../screens/YouTubeScreen';
 import HomeScreen from '../screens/HomeScreen';
 import QiblaScreen from '../screens/QiblaScreen';
+import PrayerRemindersScreen from '../screens/PrayerRemindersScreen';
 const Drawer = createDrawerNavigator();
 
 const brandColors = {
@@ -236,6 +237,13 @@ export default function AppNavigator() {
             component={QiblaScreen}
             options={{
               drawerIcon: ({ color, size }) => <Ionicons name="compass" size={size} color={color} />,
+            }}
+          />
+          <Drawer.Screen
+            name="Prayer Reminders"
+            component={PrayerRemindersScreen}
+            options={{
+              drawerIcon: ({ color, size }) => <Ionicons name="alarm-outline" size={size} color={color} />,
             }}
           />
         </Drawer.Navigator>
