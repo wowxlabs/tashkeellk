@@ -8,15 +8,24 @@ const API_BASE_URL = 'https://push.masjid-companion.co.uk';
 console.log('🔧 Setting notification handler at module load time...');
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
-    console.log('📬📬📬 Notification handler called:', notification.request.content.title);
+    console.log('📬📬📬📬📬📬 NOTIFICATION HANDLER CALLED!');
+    console.log('📬 Title:', notification.request.content.title);
+    console.log('📬 Body:', notification.request.content.body);
+    console.log('📬 Identifier:', notification.request.identifier);
+    if (Platform.OS === 'android') {
+      console.log('📬 Android channel:', notification.request.trigger?.channelId || 'default (no channelId sent)');
+    }
     console.log('📬 Full notification:', JSON.stringify(notification.request.content, null, 2));
-    return {
-      shouldShowAlert: true,
+    
+    const result = {
+      shouldShowAlert: true,  // Critical for foreground notifications
       shouldShowBanner: true,
       shouldShowList: true,
       shouldPlaySound: true,
       shouldSetBadge: false,
     };
+    console.log('📬 Handler returning:', JSON.stringify(result));
+    return result;
   },
 });
 console.log('✅ Notification handler set at module level');
@@ -54,15 +63,26 @@ export async function getExpoPushToken() {
     });
     
     console.log('📱 Expo push token obtained:', tokenData.data);
+    console.log('📱 Push token project ID (from app.json): 1dfe0430-b53f-440c-8781-3c0fd9a14c7a');
+    console.log('📱 FCM project_id (from google-services.json): tashkeel-ad13f');
     return tokenData.data;
   } catch (error) {
+    console.error('❌ Error getting push token:', error);
     const errorMessage = error?.message || '';
+    console.error('❌ Error message:', errorMessage);
     const isFCMError = errorMessage.includes('FirebaseApp') || 
                       errorMessage.includes('FCM') || 
                       errorMessage.includes('Firebase') ||
-                      errorMessage.includes('fcm-credentials');
+                      errorMessage.includes('fcm-credentials') ||
+                      errorMessage.includes('tashkeel-450923') ||
+                      errorMessage.includes('project_id');
     
     if (isFCMError && Platform.OS === 'android') {
+      console.error('❌ FCM ERROR DETECTED!');
+      console.error('❌ This usually means:');
+      console.error('   1. EAS credentials use wrong FCM project');
+      console.error('   2. google-services.json mismatch with EAS');
+      console.error('   3. Backend sending to wrong FCM project');
       // Android requires FCM (Firebase Cloud Messaging) which Expo uses under the hood
       // This needs to be configured via EAS credentials for Android builds
       console.warn('⚠️ Android push notifications require FCM configuration');
@@ -259,9 +279,18 @@ export async function initializeNotifications() {
     // Add listener for notifications received while app is running (after permissions and channel)
     if (!notificationReceivedListener) {
       notificationReceivedListener = Notifications.addNotificationReceivedListener((notification) => {
-        console.log('🔔 Notification received:', notification.request.content.title);
-        console.log('📱 Notification body:', notification.request.content.body);
-        console.log('📱 Full notification:', JSON.stringify(notification.request.content, null, 2));
+        console.log('🔔🔔🔔🔔🔔🔔 NOTIFICATION RECEIVED LISTENER TRIGGERED!');
+        console.log('🔔 Title:', notification.request.content.title);
+        console.log('🔔 Body:', notification.request.content.body);
+        console.log('🔔 Identifier:', notification.request.identifier);
+        if (Platform.OS === 'android') {
+          console.log('🔔 Android channel:', notification.request.trigger?.channelId || 'default (no channelId sent)');
+          console.log('🔔 Android trigger type:', notification.request.trigger?.type || 'unknown');
+        }
+        console.log('🔔 Full notification:', JSON.stringify(notification.request.content, null, 2));
+        console.log('🔔 Full request:', JSON.stringify(notification.request, null, 2));
+        console.log('⚠️ NOTE: This listener fires AFTER handler is called');
+        console.log('⚠️ If you see this but NO handler log, handler is broken');
       });
       console.log('✅ Notification received listener registered');
     }
@@ -303,6 +332,27 @@ export async function initializeNotifications() {
   } catch (error) {
     console.error('❌ Failed to initialize notifications:', error);
     return false;
+  }
+}
+
+/**
+ * Test function to verify notification handler is working
+ * Call this manually to test if notifications are working
+ */
+export async function testNotificationHandler() {
+  try {
+    console.log('🧪 Testing notification handler...');
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: '🧪 Handler Test',
+        body: 'Testing if handler is called',
+        data: { test: true },
+      },
+      trigger: { seconds: 1 },
+    });
+    console.log('✅ Test notification scheduled');
+  } catch (error) {
+    console.error('❌ Failed to schedule test notification:', error);
   }
 }
 
