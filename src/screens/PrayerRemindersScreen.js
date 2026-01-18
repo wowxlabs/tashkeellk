@@ -24,6 +24,7 @@ import {
   schedulePrayerReminders,
   getScheduledPrayerReminders,
 } from '../services/prayerReminders';
+import { logPrayerReminderToggle, logPrayerLocationChange, logAdhanSoundChange } from '../services/analytics';
 
 const BRAND_COLORS = {
   primary: '#0F8D6B',
@@ -101,12 +102,14 @@ const PrayerRemindersScreen = () => {
     setToggles(newToggles);
     await setPrayerReminderToggles(newToggles);
     await schedulePrayerReminders();
+    logPrayerReminderToggle(prayerName, value);
   };
 
   const handleLocationChange = async (newLocation) => {
     setLocation(newLocation);
     await setSelectedLocation(newLocation);
     await schedulePrayerReminders();
+    logPrayerLocationChange(newLocation);
   };
 
   const handleMinutesChange = async (minutes) => {
@@ -119,6 +122,7 @@ const PrayerRemindersScreen = () => {
     setAdhanSoundId(soundId);
     await setAdhanSound(soundId);
     await schedulePrayerReminders();
+    logAdhanSoundChange(soundId);
   };
 
   const handlePlaySound = async (soundId, soundFilename) => {
@@ -128,7 +132,7 @@ const PrayerRemindersScreen = () => {
         try {
           await soundRef.current.stopAsync();
           await soundRef.current.unloadAsync();
-        } catch (e) {
+        } catch (_e) {
           // Ignore errors when stopping
         }
         soundRef.current = null;
@@ -177,7 +181,7 @@ const PrayerRemindersScreen = () => {
       try {
         await soundRef.current.stopAsync();
         await soundRef.current.unloadAsync();
-      } catch (e) {
+      } catch (_e) {
         // Ignore errors
       }
       soundRef.current = null;

@@ -205,7 +205,6 @@ const HomeScreen = () => {
     }, {})
   );
   const [latestBayans, setLatestBayans] = useState([]);
-  const [currentTime, setCurrentTime] = useState(DateTime.now());
   const navigation = useNavigation();
 
   useEffect(() => {
@@ -239,8 +238,6 @@ const HomeScreen = () => {
   // Update countdown every second
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentTime(DateTime.now());
-      
       // Recalculate countdown for each prayer source
       setPrayerState((prev) => {
         const updated = { ...prev };

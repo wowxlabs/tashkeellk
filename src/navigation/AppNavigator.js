@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useColorScheme, Image, View, Text, StyleSheet, Linking, TouchableOpacity, Platform } from 'react-native';
 import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
-import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList, DrawerItem } from '@react-navigation/drawer';
+import { logScreenView } from '../services/analytics';
+import { createDrawerNavigator, DrawerContentScrollView, DrawerItem } from '@react-navigation/drawer';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -27,6 +28,8 @@ const brandColors = {
 export default function AppNavigator() {
   const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
+  const routeNameRef = useRef();
+  const navigationRef = useRef();
 
   useEffect(() => {
     if (Platform.OS === 'android') {
@@ -67,7 +70,25 @@ export default function AppNavigator() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style="light" backgroundColor={brandColors.primary} translucent={Platform.OS === 'ios' ? false : true} />
-      <NavigationContainer theme={navigationTheme}>
+      <NavigationContainer
+        ref={navigationRef}
+        theme={navigationTheme}
+        onReady={() => {
+          routeNameRef.current = navigationRef.current.getCurrentRoute()?.name;
+        }}
+        onStateChange={async () => {
+          const previousRouteName = routeNameRef.current;
+          const currentRoute = navigationRef.current.getCurrentRoute();
+          const currentRouteName = currentRoute?.name;
+
+          if (previousRouteName !== currentRouteName) {
+            // Log screen view
+            await logScreenView(currentRouteName);
+          }
+
+          routeNameRef.current = currentRouteName;
+        }}
+      >
         <Drawer.Navigator
           screenOptions={{
             headerTitleAlign: 'center',

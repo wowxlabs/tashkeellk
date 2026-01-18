@@ -243,6 +243,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { startForegroundService } from './ForegroundService';
 import { useNavigation } from '@react-navigation/native';
 import axios from 'axios';
+import { logRadioPlay, logRadioStop } from '../services/analytics';
 
 const RADIO_STREAM_URL = 'https://radio.tashkeel.lk:8000/radio.mp3';
 const NOW_PLAYING_API = 'https://radio.tashkeel.lk/api/station/2/nowplaying';
@@ -614,6 +615,7 @@ const RadioScreen = () => {
         setIsPlaying(true);
         userPausedRef.current = false; // Reset pause flag when playing
         animateWaveform();
+        logRadioPlay();
       } else {
         // Check if sound is still valid
         try {
@@ -709,6 +711,7 @@ const RadioScreen = () => {
         setSound(null);
         setIsPlaying(false);
         stopWaveform();
+        logRadioStop();
       }
     } catch (error) {
       // Ignore "Player does not exist" errors

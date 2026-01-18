@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -71,6 +72,8 @@ const BRAND_COLORS = {
   textDark: '#0B4733',
 };
 
+import { logQiblaOpen } from '../services/analytics';
+
 export default function QiblaScreen() {
   const [location, setLocation] = useState(null);
   const [heading, setHeading] = useState(0);
@@ -96,6 +99,13 @@ export default function QiblaScreen() {
       headerTitleStyle: { fontSize: 18, fontWeight: '600' },
     });
   }, [navigation]);
+
+  // Log when Qibla screen is opened
+  useFocusEffect(
+    React.useCallback(() => {
+      logQiblaOpen();
+    }, [])
+  );
 
   // Request location permission and get location
   useEffect(() => {

@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { logBayanPlay, logBayanShare } from '../services/analytics';
 
 const BRAND_COLORS = {
   primary: '#0F8D6B',
@@ -110,18 +111,23 @@ const YouTubeScreen = () => {
               videoId={extractVideoId(selectedVideo.videoUrl)}
               onChangeState={(state) => {
                 if (state === 'ended') setSelectedVideo(null);
+                if (state === 'playing') {
+                  // Log when video starts playing
+                  logBayanPlay(selectedVideo.id?.toString() || selectedVideo.videoUrl, selectedVideo.title);
+                }
               }}
             />
 
             <TouchableOpacity
               style={styles.shareButton}
-              onPress={() =>
+              onPress={async () => {
+                await logBayanShare(selectedVideo.id?.toString() || selectedVideo.videoUrl, selectedVideo.title);
                 Share.share({
                   title: selectedVideo.title,
                   message: `${selectedVideo.title}\n\nWatch now: ${selectedVideo.videoUrl}`,
                   url: selectedVideo.videoUrl,
-                })
-              }
+                });
+              }}
             >
               <Text style={styles.shareText}>Share This Video</Text>
               <Ionicons name="share-social" size={18} color={BRAND_COLORS.textDark} />
