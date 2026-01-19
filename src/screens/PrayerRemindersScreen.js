@@ -299,6 +299,18 @@ const PrayerRemindersScreen = () => {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {/* Battery Info Section */}
+      <View style={styles.batteryInfoSection}>
+        <Ionicons name="battery-charging" size={20} color={BRAND_COLORS.textDark} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.batteryInfoTitle}>Battery optimisation</Text>
+          <Text style={styles.batteryInfoText}>
+            For on-time reminders, make sure background activity is allowed and battery optimisation is turned off
+            for this app in your phone settings.
+          </Text>
+        </View>
+      </View>
+
       {/* Prayer Toggles Section */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Prayer Reminders</Text>
@@ -611,6 +623,27 @@ const styles = StyleSheet.create({
   },
   infoText: {
     flex: 1,
+    fontSize: 13,
+    color: BRAND_COLORS.textDark,
+    lineHeight: 18,
+  },
+  batteryInfoSection: {
+    flexDirection: 'row',
+    backgroundColor: '#fff3cd',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#ffeeba',
+  },
+  batteryInfoTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: BRAND_COLORS.textDark,
+    marginBottom: 4,
+  },
+  batteryInfoText: {
     fontSize: 13,
     color: BRAND_COLORS.textDark,
     lineHeight: 18,

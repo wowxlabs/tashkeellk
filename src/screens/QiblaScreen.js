@@ -284,6 +284,17 @@ export default function QiblaScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
+      {/* Verification Info Card */}
+      <View style={styles.verificationInfoSection}>
+        <Ionicons name="checkmark-circle" size={20} color={BRAND_COLORS.textDark} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.verificationInfoTitle}>Verify Qibla Direction</Text>
+          <Text style={styles.verificationInfoText}>
+            Please verify the Qibla direction shown here with another reliable app to ensure accuracy.
+          </Text>
+        </View>
+      </View>
+
       {/* Info card */}
       <View style={styles.infoTopCard}>
         <View style={[styles.infoTopRow, styles.deviceHeadingRow]}>
@@ -752,6 +763,27 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontWeight: '500',
     flexWrap: 'wrap',
+  },
+  verificationInfoSection: {
+    flexDirection: 'row',
+    backgroundColor: '#fff3cd',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#ffeeba',
+  },
+  verificationInfoTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: BRAND_COLORS.textDark,
+    marginBottom: 4,
+  },
+  verificationInfoText: {
+    fontSize: 13,
+    color: BRAND_COLORS.textDark,
+    lineHeight: 18,
   },
 });
 

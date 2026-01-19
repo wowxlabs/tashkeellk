@@ -215,7 +215,9 @@ async function scheduleSinglePrayerNotification(prayerName, prayerDateTime, minu
 
     const notificationContent = {
       title: `${prayerName} Prayer Reminder`,
-      body: `${prayerName} prayer is in ${minutesBefore} minute${minutesBefore !== 1 ? 's' : ''}`,
+      body: minutesBefore === 0 
+        ? `It's time for ${prayerName} prayer`
+        : `${prayerName} prayer is in ${minutesBefore} minute${minutesBefore !== 1 ? 's' : ''}`,
       data: {
         prayerName,
         prayerTime: prayerDateTime.toISO(),
