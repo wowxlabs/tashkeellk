@@ -244,6 +244,7 @@ import { startForegroundService } from './ForegroundService';
 import { useNavigation } from '@react-navigation/native';
 import axios from 'axios';
 import { logRadioPlay, logRadioStop } from '../services/analytics';
+import BannerAd from '../components/BannerAd';
 
 const RADIO_STREAM_URL = 'https://radio.tashkeel.lk:8000/radio.mp3';
 const NOW_PLAYING_API = 'https://radio.tashkeel.lk/api/station/2/nowplaying';
@@ -1045,6 +1046,8 @@ const RadioScreen = () => {
               ))}
             </View>
           )}
+          
+          <BannerAd />
         </View>
       </ScrollView>
     </ImageBackground>

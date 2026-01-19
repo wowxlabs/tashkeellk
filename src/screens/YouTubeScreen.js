@@ -6,6 +6,7 @@ import axios from 'axios';
 import YoutubePlayer from 'react-native-youtube-iframe';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { logBayanPlay, logBayanShare } from '../services/analytics';
+import BannerAd from '../components/BannerAd';
 
 const BRAND_COLORS = {
   primary: '#0F8D6B',
@@ -159,92 +160,124 @@ const YouTubeScreen = () => {
   const liveVideoId = liveConfig ? extractVideoId(liveConfig.url) : '';
   const liveChannelHandle = liveConfig && !liveVideoId ? extractChannelHandle(liveConfig.url) : '';
 
+  // Show video in full screen if selected
+  if (selectedVideo) {
+    const videoId = extractVideoId(selectedVideo.videoUrl);
+    return (
+      <View style={styles.container}>
+        <ScrollView style={styles.videoDetailContainer} contentContainerStyle={{ paddingBottom: 24 }}>
+          <View style={styles.videoHeader}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => setSelectedVideo(null)}
+            >
+              <Ionicons name="arrow-back" size={24} color={BRAND_COLORS.textDark} />
+            </TouchableOpacity>
+            <Text style={styles.videoTitle} numberOfLines={2}>
+              {selectedVideo.title}
+            </Text>
+          </View>
+
+          <View style={styles.playerContainer}>
+            {videoId ? (
+              <YoutubePlayer
+                height={220}
+                width={SCREEN_WIDTH}
+                play
+                videoId={videoId}
+                initialPlayerParams={{
+                  controls: true,
+                  modestbranding: true,
+                }}
+                onChangeState={(state) => {
+                  console.log('🎬 Player state:', state);
+                  if (state === 'playing') {
+                    logBayanPlay(selectedVideo.id?.toString() || selectedVideo.videoUrl, selectedVideo.title);
+                  }
+                }}
+              />
+            ) : (
+              <View style={styles.playerErrorContainer}>
+                <Text style={styles.playerErrorText}>Unable to load video</Text>
+                <Text style={styles.playerErrorSubtext}>{selectedVideo.videoUrl}</Text>
+              </View>
+            )}
+          </View>
+
+          <TouchableOpacity
+            style={styles.shareButton}
+            onPress={async () => {
+              await logBayanShare(selectedVideo.id?.toString() || selectedVideo.videoUrl, selectedVideo.title);
+              Share.share({
+                title: selectedVideo.title,
+                message: `${selectedVideo.title}\n\nWatch now: ${selectedVideo.videoUrl}`,
+                url: selectedVideo.videoUrl,
+              });
+            }}
+          >
+            <Text style={styles.shareText}>Share This Bayan</Text>
+            <Ionicons name="share-social" size={18} color={BRAND_COLORS.textDark} />
+          </TouchableOpacity>
+
+          <View style={styles.videoMeta}>
+            {selectedVideo.topic && (
+              <>
+                <Text style={styles.metaLabel}>Topic</Text>
+                <Text style={styles.metaValue}>{selectedVideo.topic}</Text>
+              </>
+            )}
+            {selectedVideo.subTitle && (
+              <>
+                <Text style={[styles.metaLabel, styles.metaLabelSpacing]}>Sub Title</Text>
+                <Text style={styles.metaValue}>{selectedVideo.subTitle}</Text>
+              </>
+            )}
+            {selectedVideo.lecturer && (
+              <>
+                <Text style={[styles.metaLabel, styles.metaLabelSpacing]}>Lecture</Text>
+                <Text style={styles.metaValue}>{selectedVideo.lecturer}</Text>
+              </>
+            )}
+            {selectedVideo.location && (
+              <>
+                <Text style={[styles.metaLabel, styles.metaLabelSpacing]}>Location</Text>
+                <Text style={styles.metaValue}>{selectedVideo.location}</Text>
+              </>
+            )}
+            {selectedVideo.date && (
+              <>
+                <Text style={[styles.metaLabel, styles.metaLabelSpacing]}>Date</Text>
+                <Text style={styles.metaValue}>{new Date(selectedVideo.date).toDateString()}</Text>
+              </>
+            )}
+            {selectedVideo.category && (
+              <>
+                <Text style={[styles.metaLabel, styles.metaLabelSpacing]}>Category</Text>
+                <Text style={styles.metaValue}>{selectedVideo.category}</Text>
+              </>
+            )}
+            {selectedVideo.language && (
+              <>
+                <Text style={[styles.metaLabel, styles.metaLabelSpacing]}>Language</Text>
+                <Text style={styles.metaValue}>{selectedVideo.language}</Text>
+              </>
+            )}
+            {selectedVideo.description && (
+              <>
+                <Text style={[styles.metaLabel, styles.metaLabelSpacing]}>Description</Text>
+                <Text style={styles.metaValue}>{cleanMarkdown(selectedVideo.description)}</Text>
+              </>
+            )}
+          </View>
+          
+          <BannerAd />
+        </ScrollView>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      {/* Video Player Modal */}
-      <Modal
-        visible={!!selectedVideo}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setSelectedVideo(null)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle} numberOfLines={2}>
-                {selectedVideo?.title}
-              </Text>
-              <TouchableOpacity
-                style={styles.modalCloseButton}
-                onPress={() => setSelectedVideo(null)}
-              >
-                <Ionicons name="close" size={24} color={BRAND_COLORS.textDark} />
-              </TouchableOpacity>
-            </View>
-
-            {selectedVideo && (() => {
-              const videoId = extractVideoId(selectedVideo.videoUrl);
-              console.log('📹 Video ID extracted:', videoId, 'from URL:', selectedVideo.videoUrl);
-              return (
-                <>
-                  <View style={styles.playerContainer}>
-                    {videoId ? (
-                      <YoutubePlayer
-                        height={VIDEO_PLAYER_HEIGHT}
-                        width={SCREEN_WIDTH}
-                        play
-                        videoId={videoId}
-                        initialPlayerParams={{
-                          controls: true,
-                          modestbranding: true,
-                        }}
-                        onChangeState={(state) => {
-                          console.log('🎬 Player state:', state);
-                          if (state === 'ended') {
-                            setSelectedVideo(null);
-                          }
-                          if (state === 'playing') {
-                            logBayanPlay(selectedVideo.id?.toString() || selectedVideo.videoUrl, selectedVideo.title);
-                          }
-                        }}
-                      />
-                    ) : (
-                      <View style={styles.playerErrorContainer}>
-                        <Text style={styles.playerErrorText}>Unable to load video</Text>
-                        <Text style={styles.playerErrorSubtext}>{selectedVideo.videoUrl}</Text>
-                      </View>
-                    )}
-                  </View>
-
-                  <ScrollView style={styles.modalScrollContent} showsVerticalScrollIndicator={false}>
-                    <View style={styles.modalVideoMeta}>
-                      <Text style={styles.metaLabel}>Published</Text>
-                      <Text style={styles.metaValue}>{new Date(selectedVideo.date).toDateString()}</Text>
-                      <Text style={[styles.metaLabel, styles.metaLabelSpacing]}>Description</Text>
-                      <Text style={styles.metaValue}>{cleanMarkdown(selectedVideo.description)}</Text>
-                    </View>
-
-                    <TouchableOpacity
-                      style={styles.modalShareButton}
-                      onPress={async () => {
-                        await logBayanShare(selectedVideo.id?.toString() || selectedVideo.videoUrl, selectedVideo.title);
-                        Share.share({
-                          title: selectedVideo.title,
-                          message: `${selectedVideo.title}\n\nWatch now: ${selectedVideo.videoUrl}`,
-                          url: selectedVideo.videoUrl,
-                        });
-                      }}
-                    >
-                      <Text style={styles.shareText}>Share This Video</Text>
-                      <Ionicons name="share-social" size={18} color={BRAND_COLORS.textDark} />
-                    </TouchableOpacity>
-                  </ScrollView>
-                </>
-              );
-            })()}
-          </View>
-        </View>
-      </Modal>
 
       {/* Live Stream Modal */}
       <Modal
@@ -327,8 +360,9 @@ const YouTubeScreen = () => {
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderVideoCard}
           ListEmptyComponent={
-            <Text style={styles.emptyState}>No videos match “{searchQuery}”.</Text>
+            <Text style={styles.emptyState}>No videos match "{searchQuery}".</Text>
           }
+          ListFooterComponent={<BannerAd />}
           ListHeaderComponent={
             <View style={styles.searchSection}>
               {liveConfig && (
@@ -557,18 +591,16 @@ const styles = StyleSheet.create({
     color: BRAND_COLORS.textDark,
   },
   shareButton: {
-    marginTop: 6,
-    paddingVertical: 10,
+    marginTop: 16,
+    marginHorizontal: 16,
+    paddingVertical: 12,
     paddingHorizontal: 20,
-    backgroundColor: '#fff',
+    backgroundColor: BRAND_COLORS.accent,
     borderRadius: 24,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     columnGap: 8,
-    alignSelf: 'stretch',
-    borderWidth: 1,
-    borderColor: '#d9ede2',
   },
   shareText: {
     color: BRAND_COLORS.textDark,
@@ -576,24 +608,27 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   videoMeta: {
-    width: '100%',
-    marginTop: 0,
-    backgroundColor: '#0b281f',
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 14,
+    paddingTop: 16,
+    paddingBottom: 16,
+    backgroundColor: '#fff',
+    marginTop: 16,
+    marginHorizontal: 16,
+    borderRadius: 12,
   },
   metaLabel: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 13,
+    color: BRAND_COLORS.textDark,
+    fontSize: 12,
     textTransform: 'uppercase',
     letterSpacing: 1,
+    fontWeight: 'bold',
+    opacity: 1,
   },
   metaLabelSpacing: {
-    marginTop: 12,
+    marginTop: 16,
   },
   metaValue: {
-    color: '#fff',
+    color: BRAND_COLORS.textDark,
     fontSize: 15,
     marginTop: 8,
     lineHeight: 22,
@@ -726,6 +761,30 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  videoDetailContainer: {
+    flex: 1,
+    backgroundColor: BRAND_COLORS.background,
+  },
+  videoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  backButton: {
+    marginRight: 12,
+    padding: 4,
+  },
+  videoTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: BRAND_COLORS.textDark,
   },
   playerContainer: {
     width: '100%',

@@ -73,6 +73,7 @@ const BRAND_COLORS = {
 };
 
 import { logQiblaOpen } from '../services/analytics';
+import BannerAd from '../components/BannerAd';
 
 export default function QiblaScreen() {
   const [location, setLocation] = useState(null);
@@ -456,6 +457,8 @@ export default function QiblaScreen() {
             </View>
           </View>
         </LinearGradient>
+        
+        <BannerAd />
       </View>
     </ScrollView>
   );

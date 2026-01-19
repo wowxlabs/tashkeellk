@@ -57,6 +57,13 @@
           ],
           "icon": "./assets/images/icon.png"
         }
+      ],
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-5486747028853080~8939949266",
+          "iosAppId": "ca-app-pub-5486747028853080~6000771213"
+        }
       ]
     ],
     "experiments": {

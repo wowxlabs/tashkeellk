@@ -5,6 +5,7 @@ import { DateTime } from 'luxon';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { getSelectedLocation } from '../services/prayerReminders';
+import BannerAd from '../components/BannerAd';
 
 const PRAYER_SOURCES = [
   {
@@ -331,6 +332,7 @@ const HomeScreen = () => {
         items={latestBayans}
         onSelect={(item) => navigation.navigate('Bayans', { featuredVideo: item })}
       />
+      <BannerAd />
     </ScrollView>
   );
 };
