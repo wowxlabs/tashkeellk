@@ -457,9 +457,9 @@ export default function QiblaScreen() {
             </View>
           </View>
         </LinearGradient>
-        
-        <BannerAd />
       </View>
+      
+      <BannerAd />
     </ScrollView>
   );
 }
