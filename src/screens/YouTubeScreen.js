@@ -425,8 +425,7 @@ const YouTubeScreen = () => {
               )}
               <Text style={styles.sectionIntro}>
                 Browse the latest Tashkeel TV uploads or search for specific lecturers, series names,
-                or topics (e.g., "Dua", "Jumuah", "Uwaisul Qarni"). Use the bar below to jump straight
-                to the message you need.
+                or topics (e.g., "Dua", "Jumuah", "Ramadan"). 
               </Text>
               <View style={styles.counterCard}>
                 <View style={styles.counterIcon}>
@@ -575,6 +574,8 @@ const styles = StyleSheet.create({
   thumbnail: {
     width: 150,
     height: 90,
+    borderRadius: 8,
+    overflow: 'hidden',
   },
   videoInfo: {
     flex: 1,
@@ -582,7 +583,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   videoTitle: {
-    fontSize: 15,
+    fontSize: 11,
     fontWeight: '600',
     color: BRAND_COLORS.textDark,
   },
