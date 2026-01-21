@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Image, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, Image, ScrollView, TouchableOpacity, Animated } from 'react-native';
 import axios from 'axios';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -24,7 +24,7 @@ const formatCountdown = (diff) => {
   return `${minutes}m ${seconds}s`;
 };
 
-const PrayerCard = ({ label, accent, data, loading, error }) => {
+const PrayerCard = ({ label, accent, data, loading, error, currentDateTime }) => {
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
@@ -44,6 +44,9 @@ const PrayerCard = ({ label, accent, data, loading, error }) => {
         </View>
       ) : (
         <>
+          {/* Curved sun arc inside the card */}
+          <SunArc schedule={data?.daySchedule} currentDateTime={currentDateTime} />
+
           <View style={styles.cardBody}>
             <View style={[styles.iconContainer, { backgroundColor: '#fff' }]}>
               <Ionicons name="sunny" size={24} color={accent} />
@@ -72,6 +75,172 @@ const PrayerCard = ({ label, accent, data, loading, error }) => {
               </View>
             ))}
           </View>
+        </>
+      )}
+    </View>
+  );
+};
+
+// Curved "sun arc" timeline for the day's prayers with smooth sine curve
+const SunArc = ({ schedule, currentDateTime }) => {
+  const [width, setWidth] = useState(0);
+  const pulse = useRef(new Animated.Value(1)).current;
+
+  if (!schedule || schedule.length === 0) {
+    return null;
+  }
+
+  const validSlots = schedule.filter(
+    (slot) => slot.dateTime && slot.dateTime.isValid
+  );
+
+  if (validSlots.length === 0) {
+    return null;
+  }
+
+  // Compute earliest and latest times to normalize positions
+  const times = validSlots.map((s) => s.dateTime);
+  const earliest = times.reduce((min, dt) => (dt < min ? dt : min), times[0]);
+  const latest = times.reduce((max, dt) => (dt > max ? dt : max), times[0]);
+  const spanSeconds = Math.max(
+    latest.diff(earliest, 'seconds').seconds,
+    1
+  );
+
+  const handleLayout = (event) => {
+    setWidth(event.nativeEvent.layout.width);
+  };
+
+  const paddingH = 16;
+  const containerHeight = 100;
+  const curveHeight = 35;
+  const baseY = containerHeight - 15;
+
+  // Calculate marker positions
+  const markers = width
+    ? validSlots.map((slot) => {
+        const offset = slot.dateTime.diff(earliest, 'seconds').seconds;
+        const t = Math.max(0, Math.min(1, offset / spanSeconds));
+        const x = paddingH + t * Math.max(width - paddingH * 2, 1);
+        // Use a smooth sine arch: y goes up in the middle
+        const y = baseY - curveHeight * Math.sin(Math.PI * t);
+        return { ...slot, x, y };
+      })
+    : [];
+
+  // Current time marker (only if same day as schedule)
+  let currentDot = null;
+  let currentX = null;
+  if (currentDateTime && currentDateTime.hasSame(earliest, 'day') && width > 0) {
+    const nowOffset = currentDateTime.diff(earliest, 'seconds').seconds;
+    const tNow = Math.max(0, Math.min(1, nowOffset / spanSeconds));
+    const xNow = paddingH + tNow * Math.max(width - paddingH * 2, 1);
+    const yNow = baseY - curveHeight * Math.sin(Math.PI * tNow);
+    currentDot = { x: xNow, y: yNow };
+    currentX = xNow;
+  }
+
+  useEffect(() => {
+    if (!currentDot) return;
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1.5,
+          duration: 700,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 700,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [pulse, currentDot]);
+
+  // Generate curve points for smooth sine curve
+  const curvePoints = width
+    ? Array.from({ length: Math.floor(width - paddingH * 2) }, (_, i) => {
+        const t = i / Math.max(width - paddingH * 2, 1);
+        const x = paddingH + i;
+        const y = baseY - curveHeight * Math.sin(Math.PI * t);
+        return { x, y };
+      })
+    : [];
+
+  return (
+    <View
+      style={styles.sunArcContainer}
+      onLayout={handleLayout}
+    >
+      {width > 0 && (
+        <>
+          {/* Smooth sine curve using multiple small segments */}
+          {curvePoints.length > 1 && curvePoints.map((point, idx) => {
+            if (idx === 0) return null;
+            const prev = curvePoints[idx - 1];
+            const dx = point.x - prev.x;
+            const dy = point.y - prev.y;
+            const length = Math.sqrt(dx * dx + dy * dy);
+            const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+
+            // Segments before (or at) the current time are drawn darker,
+            // segments after the current time stay lighter.
+            const isBeforeOrAtNow = currentX !== null && prev.x <= currentX;
+
+            return (
+              <View
+                key={`curve-${idx}`}
+                style={[
+                  styles.sunArcCurveSegment,
+                  isBeforeOrAtNow ? styles.sunArcCurveSegmentActive : null,
+                  {
+                    left: prev.x,
+                    top: prev.y,
+                    width: length,
+                    transform: [{ rotate: `${angle}deg` }],
+                  },
+                ]}
+              />
+            );
+          })}
+
+          {/* Markers for each prayer (including sunrise) */}
+          {markers.map((slot) => (
+            <View
+              key={slot.name}
+              style={[
+                styles.sunArcMarker,
+                {
+                  left: slot.x - 18,
+                  top: slot.y - 6,
+                },
+              ]}
+            >
+              <View style={styles.sunArcMarkerDot} />
+              <Text style={styles.sunArcMarkerLabel}>
+                {slot.name}
+              </Text>
+            </View>
+          ))}
+
+          {/* Animated dot for current time along the curve */}
+          {currentDot && (
+            <Animated.View
+              style={[
+                styles.sunArcCurrentDotContainer,
+                {
+                  left: currentDot.x - 7,
+                  top: currentDot.y - 4,
+                  transform: [{ scale: pulse }],
+                },
+              ]}
+            >
+              <View style={styles.sunArcCurrentDot} />
+            </Animated.View>
+          )}
         </>
       )}
     </View>
@@ -131,13 +300,17 @@ const BayansStrip = ({ items, onSelect }) => (
 const LOCATION_NAME_STORAGE_KEY = 'USER_LOCATION_LABEL_V2';
 
 const HomeScreen = () => {
+  const initialZone =
+    Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
   const [prayerState, setPrayerState] = useState({
     loading: true,
     data: null,
     error: null,
   });
-  const [timeZoneId] = useState(
-    Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  const [timeZoneId] = useState(initialZone);
+  const [selectedDate, setSelectedDate] = useState(() =>
+    DateTime.now().setZone(initialZone)
   );
   const [latestBayans, setLatestBayans] = useState([]);
   const [calcMethod, setCalcMethod] = useState(null);
@@ -260,9 +433,8 @@ const HomeScreen = () => {
           // Keep default "Your Location" if geocoding fails
         }
 
-        // Fetch prayer times from Tashkeel API using current coords and method
-        const today = DateTime.now().setZone(timeZoneId);
-        const apiDate = today.toFormat('yyyy-LL-dd');
+        // Fetch prayer times from Tashkeel API using current coords, method, and selected date
+        const apiDate = selectedDate.toFormat('yyyy-LL-dd');
 
         const prayerResp = await axios.get('https://api.tashkeel.lk/v1/prayertimes', {
           params: {
@@ -281,6 +453,7 @@ const HomeScreen = () => {
         // Build schedule using API times (local timezone)
         const labels = [
           { key: 'fajr', name: 'Fajr' },
+          { key: 'sunrise', name: 'Sunrise' },
           { key: 'dhuhr', name: 'Dhuhr' },
           { key: 'asr', name: 'Asr' },
           { key: 'maghrib', name: 'Maghrib' },
@@ -298,9 +471,9 @@ const HomeScreen = () => {
 
             const dt = DateTime.fromObject(
               {
-                year: today.year,
-                month: today.month,
-                day: today.day,
+                year: selectedDate.year,
+                month: selectedDate.month,
+                day: selectedDate.day,
                 hour,
                 minute,
               },
@@ -356,8 +529,9 @@ const HomeScreen = () => {
             daySchedule: schedule.map((slot) => ({
               name: slot.name,
               time: slot.dateTime.toFormat('h:mm a'),
+              dateTime: slot.dateTime,
             })),
-            dayLabel: now.toFormat('EEEE'),
+            dayLabel: selectedDate.toFormat('EEEE'),
           },
         });
       } catch (e) {
@@ -375,14 +549,14 @@ const HomeScreen = () => {
     }
 
     loadCoordsAndCompute();
-  }, [calcMethod, timeZoneId]);
+  }, [calcMethod, timeZoneId, selectedDate]);
 
   useEffect(() => {
     axios
-      .get('https://www.tashkeel.lk/api/videos.json')
+      .get('https://api.tashkeel.lk/videos.json')
       .then((response) => {
         const sorted = [...(response.data || [])].sort(
-          (a, b) => new Date(b.date) - new Date(a.date)
+          (a, b) => parseInt(b.id, 10) - parseInt(a.id, 10)
         );
         setLatestBayans(sorted.slice(0, 3));
       })
@@ -417,12 +591,42 @@ const HomeScreen = () => {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 24 }}>
+      <View style={styles.dateNavRow}>
+        <TouchableOpacity
+          style={styles.dateNavButton}
+          onPress={() =>
+            setSelectedDate((prev) => prev.minus({ days: 1 }))
+          }
+        >
+          <Ionicons name="chevron-back" size={20} color="#0B4733" />
+        </TouchableOpacity>
+        <View style={styles.dateLabelWrapper}>
+          <Text style={styles.dateLabelMain}>
+            {selectedDate.hasSame(DateTime.now().setZone(timeZoneId), 'day')
+              ? 'Today'
+              : selectedDate.toFormat('cccc')}
+          </Text>
+          <Text style={styles.dateLabelSub}>
+            {selectedDate.toFormat('dd LLL yyyy')}
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={styles.dateNavButton}
+          onPress={() =>
+            setSelectedDate((prev) => prev.plus({ days: 1 }))
+          }
+        >
+          <Ionicons name="chevron-forward" size={20} color="#0B4733" />
+        </TouchableOpacity>
+      </View>
+
       <PrayerCard
         label={locationName}
         accent="#0F8D6B"
         data={prayerState.data}
         loading={prayerState.loading}
         error={prayerState.error}
+        currentDateTime={DateTime.now().setZone(timeZoneId)}
       />
       <BayansStrip
         items={latestBayans}
@@ -437,6 +641,93 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ECF7F3',
+  },
+  dateNavRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    marginHorizontal: 16,
+    marginBottom: 8,
+  },
+  dateNavButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#d8f4ea',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateLabelWrapper: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  dateLabelMain: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0B4733',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  dateLabelSub: {
+    fontSize: 13,
+    color: '#4c6b5f',
+    marginTop: 2,
+  },
+  sunArcContainer: {
+    marginTop: 0,
+    marginBottom: 30,
+    marginHorizontal: 0,
+    height: 100,
+    position: 'relative',
+  },
+  sunArcCurveSegment: {
+    position: 'absolute',
+    height: 2.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  sunArcCurveSegmentActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.75)',
+  },
+  sunArcMarker: {
+    position: 'absolute',
+    alignItems: 'center',
+    width: 36,
+  },
+  sunArcMarkerDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#F5B400',
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
+  },
+  sunArcMarkerLabel: {
+    marginTop: 4,
+    fontSize: 9,
+    color: '#d0f0e4',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  sunArcCurrentDotContainer: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sunArcCurrentDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#FF6B3D',
+    borderWidth: 2,
+    borderColor: '#ffffff',
   },
   listContent: {
     padding: 16,
@@ -491,7 +782,7 @@ const styles = StyleSheet.create({
   },
   locationRow: {
     flexDirection: 'row',
-    marginBottom: 12,
+    marginBottom: 4,
   },
   locationPill: {
     color: '#0F8D6B',

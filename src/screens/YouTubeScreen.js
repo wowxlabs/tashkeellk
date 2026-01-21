@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, FlatList, Image, TouchableOpacity, ActivityIndicator, TextInput, StyleSheet, ScrollView, Share, Linking, Modal, Dimensions, Animated, Easing } from 'react-native';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { View, Text, FlatList, Image, TouchableOpacity, ActivityIndicator, TextInput, StyleSheet, ScrollView, Share, Linking, Modal, Dimensions, Animated, Easing, RefreshControl } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import YoutubePlayer from 'react-native-youtube-iframe';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { logBayanPlay, logBayanShare } from '../services/analytics';
 import BannerAd from '../components/BannerAd';
 
@@ -25,13 +25,14 @@ const YouTubeScreen = () => {
   const [videos, setVideos] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [liveConfig, setLiveConfig] = useState(null);
   const [isLiveMode, setIsLiveMode] = useState(false);
   const navigation = useNavigation();
   const route = useRoute();
-  const VIDEO_API_URL = 'https://www.tashkeel.lk/api/videos.json';
-  const CONFIG_API_URL = 'https://www.tashkeel.lk/api/configs.json';
+  const VIDEO_API_URL = 'https://api.tashkeel.lk/videos.json';
+  const LIVE_API_URL = 'https://api.tashkeel.lk/v1/youtube-live';
   
   // Animation for live indicator pulsing
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -44,7 +45,22 @@ const YouTubeScreen = () => {
     });
     fetchLocalVideos();
     fetchLiveConfig();
+    
+    // Refresh live status every 30 seconds
+    const liveInterval = setInterval(() => {
+      fetchLiveConfig();
+    }, 30000);
+    
+    return () => clearInterval(liveInterval);
   }, []);
+
+  // Refresh videos when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchLocalVideos(true);
+      fetchLiveConfig();
+    }, [])
+  );
 
   useEffect(() => {
     if (route.params?.featuredVideo) {
@@ -77,28 +93,43 @@ const YouTubeScreen = () => {
     }
   }, [liveConfig, pulseAnim]);
 
-  const fetchLocalVideos = async () => {
+  const fetchLocalVideos = async (isRefresh = false) => {
     try {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       const response = await axios.get(VIDEO_API_URL);
       const sorted = (response.data || []).sort(
-        (a, b) => new Date(b.date) - new Date(a.date)
+        (a, b) => parseInt(b.id, 10) - parseInt(a.id, 10)
       );
       setVideos(sorted);
     } catch (error) {
       console.error('Error fetching Tashkeel videos:', error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   const fetchLiveConfig = async () => {
     try {
-      const response = await axios.get(CONFIG_API_URL);
-      if (response.data?.youtube?.live?.enabled) {
-        setLiveConfig(response.data.youtube.live);
+      const response = await axios.get(LIVE_API_URL);
+      if (response.data?.ok && response.data?.data?.isLive === true) {
+        // Only set live config if isLive is true
+        setLiveConfig({
+          url: response.data.data.url,
+          isLive: true,
+          label: 'Watch Live',
+        });
+      } else {
+        // Clear live config if not live
+        setLiveConfig(null);
       }
     } catch (error) {
       console.error('Error fetching live config:', error);
+      setLiveConfig(null);
     }
   };
 
@@ -359,6 +390,13 @@ const YouTubeScreen = () => {
           data={filteredVideos}
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderVideoCard}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => fetchLocalVideos(true)}
+              tintColor={BRAND_COLORS.primary}
+            />
+          }
           ListEmptyComponent={
             <Text style={styles.emptyState}>No videos match "{searchQuery}".</Text>
           }

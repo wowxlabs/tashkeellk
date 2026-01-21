@@ -15,8 +15,8 @@ export const PRAYER_CALC_METHODS = [
   { id: 'Jafari', label: 'Shia Ithna-Ashari, Leva Research Institute, Qum' },
 ];
 
-// Default from API: https://api.tashkeel.lk/v1/prayertimes/methods
-export const DEFAULT_PRAYER_CALC_METHOD = 'ISNA';
+// App-wide default calculation method (should be MWL by request)
+export const DEFAULT_PRAYER_CALC_METHOD = 'MWL';
 
 export async function getCalculationMethod() {
   try {
@@ -24,21 +24,10 @@ export async function getCalculationMethod() {
     if (stored) {
       return stored;
     }
-
-    // If nothing stored yet, try to pull default from API once
-    try {
-      const resp = await axios.get('https://api.tashkeel.lk/v1/prayertimes/methods');
-      const apiDefault = resp.data?.default?.code;
-      if (apiDefault && typeof apiDefault === 'string') {
-        await AsyncStorage.setItem(PRAYER_CALC_METHOD_KEY, apiDefault);
-        return apiDefault;
-      }
-    } catch (apiError) {
-      console.error('Error fetching default prayer calc method from API:', apiError?.message || apiError);
-    }
   } catch (e) {
     console.error('Error reading prayer calc method:', e);
   }
+  // If nothing stored yet, use the app's default (MWL)
   return DEFAULT_PRAYER_CALC_METHOD;
 }
 

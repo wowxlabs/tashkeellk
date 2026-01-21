@@ -198,6 +198,11 @@ export default function AppNavigator() {
               >
                 <View style={styles.drawerList}>
                   {props.state.routes.map((route, index) => {
+                    // Skip Prayer Settings from drawer menu
+                    if (route.name === 'Prayer Settings') {
+                      return null;
+                    }
+                    
                     const focused = index === props.state.index;
                     const { title, drawerLabel, drawerIcon } = props.descriptors[route.key].options;
                     const label = drawerLabel !== undefined ? drawerLabel : title !== undefined ? title : route.name;
@@ -298,7 +303,10 @@ export default function AppNavigator() {
             name="Prayer Settings"
             component={PrayerSettingsScreen}
             options={{
-              drawerIcon: ({ color, size }) => <Ionicons name="settings-outline" size={size} color={color} />,
+              // Keep the screen in the navigator but hide it from the drawer list
+              drawerItemStyle: { height: 0 },
+              drawerLabel: () => null,
+              drawerIcon: () => null,
             }}
           />
         </Drawer.Navigator>
