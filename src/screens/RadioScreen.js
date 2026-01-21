@@ -236,7 +236,7 @@
 //export default RadioScreen;
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, TouchableOpacity, Text, StyleSheet, Animated, Easing, ImageBackground, ScrollView, AppState } from 'react-native';
+import { View, TouchableOpacity, Text, StyleSheet, Animated, Easing, ImageBackground, ScrollView, AppState, ActivityIndicator } from 'react-native';
 import { Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -286,8 +286,8 @@ const MarqueeText = ({ text, style }) => {
           Animated.delay(2000), // Pause at the end
           Animated.timing(scrollX, {
             toValue: 0,
-            duration: 500,
-            easing: Easing.ease,
+            duration: duration, // Same duration for both directions
+            easing: Easing.linear, // Use linear for consistent speed
             useNativeDriver: true,
           }),
         ])
@@ -349,6 +349,7 @@ const RadioScreen = () => {
   const [nowPlaying, setNowPlaying] = useState(null);
   const [nextTrack, setNextTrack] = useState(null);
   const [songHistory, setSongHistory] = useState([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const navigation = useNavigation();
   const userPausedRef = useRef(false); // Track if user intentionally paused
   const appStateRef = useRef(AppState.currentState);
@@ -362,14 +363,21 @@ const RadioScreen = () => {
     });
   }, [navigation]);
 
-  const fetchNowPlaying = useCallback(async () => {
+  const fetchNowPlaying = useCallback(async (showLoading = false) => {
     try {
+      if (showLoading) {
+        setIsRefreshing(true);
+      }
       const { data } = await axios.get(NOW_PLAYING_API);
       setNowPlaying(data?.now_playing);
       setNextTrack(data?.playing_next);
       setSongHistory(data?.song_history ?? []);
     } catch (error) {
       console.error('Error fetching now playing info:', error);
+    } finally {
+      if (showLoading) {
+        setIsRefreshing(false);
+      }
     }
   }, []);
 
@@ -843,70 +851,6 @@ const RadioScreen = () => {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.container}>
-        {nowPlaying && (
-          <View style={styles.infoRow}>
-            <View style={styles.nowPlayingCard}>
-              <View style={styles.nowPlayingHeader}>
-                <View style={styles.nowPlayingHeaderLeft}>
-                  <View style={styles.nowPlayingIcon}>
-                    <Ionicons name="radio" size={24} color="#fff" />
-                  </View>
-                  <View>
-                    <View style={styles.liveBadge}>
-                      <View style={styles.liveDot} />
-                      <Text style={styles.liveText}>LIVE 24/7</Text>
-                    </View>
-                    <Text style={styles.nowPlayingLabel}>Now Playing</Text>
-                  </View>
-                </View>
-              </View>
-              <View style={styles.nowPlayingTitleContainer}>
-                <Text style={styles.nowPlayingTitle}>
-                  {nowPlaying?.song?.title || ''}
-                </Text>
-              </View>
-              <View style={styles.nowPlayingMetaRow}>
-                <View style={styles.nowPlayingMetaItem}>
-                  <Ionicons name="time-outline" size={16} color="rgba(255,255,255,0.9)" />
-                  <Text style={styles.nowPlayingMeta}>
-                    Duration {formatDuration(nowPlaying?.duration)}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {nextTrack && (
-              <View style={styles.nextCard}>
-                <View style={styles.nextCardHeader}>
-                  <View style={styles.nextCardHeaderLeft}>
-                    <View style={styles.nextCardIcon}>
-                      <Ionicons name="radio-button-on" size={20} color="#fff" />
-                    </View>
-                    <View>
-                      <Text style={styles.nextCardLabel}>Coming Up Next</Text>
-                      <View style={styles.nextCardBadge}>
-                        <Text style={styles.nextCardBadgeText}>NEXT</Text>
-                      </View>
-                    </View>
-                  </View>
-                </View>
-                <MarqueeText 
-                  text={nextTrack?.song?.title || ''}
-                  style={styles.nextCardTitle}
-                />
-                <View style={styles.nextCardMetaRow}>
-                  <View style={styles.nextCardMetaItem}>
-                    <Ionicons name="musical-notes-outline" size={14} color="#4c6b5f" />
-                    <Text style={styles.nextCardMeta}>
-                      {nextTrack?.song?.album || nextTrack?.playlist || '—'}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            )}
-          </View>
-        )}
-
         {/* Waveform Animation */}
         <View style={styles.waveformContainer}>
           {bars.map((bar, index) => (
@@ -976,6 +920,40 @@ const RadioScreen = () => {
           </TouchableOpacity>
         </View>
 
+        {nowPlaying && (
+          <View style={styles.infoRow}>
+            {/* Now Playing - Compact Design */}
+            <View style={styles.nowPlayingCard}>
+              <View style={styles.nowPlayingContent}>
+                <View style={styles.nowPlayingLeft}>
+                  <View style={styles.nowPlayingIcon}>
+                    <Ionicons name="radio" size={20} color="#fff" />
+                  </View>
+                  <View style={styles.nowPlayingInfo}>
+                    <View style={styles.nowPlayingHeaderRow}>
+                      <View style={styles.liveBadge}>
+                        <View style={styles.liveDot} />
+                        <Text style={styles.liveText}>LIVE</Text>
+                      </View>
+                      <Text style={styles.nowPlayingLabel}>Now Playing</Text>
+                    </View>
+                    <MarqueeText 
+                      text={nowPlaying?.song?.title || '—'}
+                      style={styles.nowPlayingTitle}
+                    />
+                    <View style={styles.nowPlayingMetaRow}>
+                      <Ionicons name="time-outline" size={12} color="rgba(255,255,255,0.7)" />
+                      <Text style={styles.nowPlayingMeta}>
+                        {formatDuration(nowPlaying?.duration)}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
+
           {scheduleItems.length > 0 && (
             <View style={styles.scheduleSection}>
               <View style={styles.scheduleHeaderContainer}>
@@ -989,8 +967,16 @@ const RadioScreen = () => {
                       <Text style={styles.scheduleTitle}>Coming Up</Text>
                     </View>
                   </View>
-                  <TouchableOpacity onPress={fetchNowPlaying} style={styles.refreshButton}>
-                    <Ionicons name="refresh" size={20} color={BRAND_COLORS.primary} />
+                  <TouchableOpacity 
+                    onPress={() => fetchNowPlaying(true)} 
+                    style={styles.refreshButton}
+                    disabled={isRefreshing}
+                  >
+                    {isRefreshing ? (
+                      <ActivityIndicator size="small" color={BRAND_COLORS.primary} />
+                    ) : (
+                      <Ionicons name="refresh" size={20} color={BRAND_COLORS.primary} />
+                    )}
                   </TouchableOpacity>
                 </View>
                 <View style={styles.timezoneContainer}>
@@ -998,52 +984,59 @@ const RadioScreen = () => {
                   <Text style={styles.timezoneNote}>All times in London timezone (GMT/BST)</Text>
                 </View>
               </View>
-              {scheduleItems.map((item, index) => (
-                <View
-                  key={item.id}
-                  style={[
-                    styles.scheduleCard,
-                    item.status === 'upcoming' && styles.scheduleCardActive,
-                    index === scheduleItems.length - 1 && styles.scheduleCardLast,
-                  ]}
-                >
-                  <View style={[
-                    styles.scheduleIcon,
-                    item.status === 'upcoming' && styles.scheduleIconActive,
-                  ]}>
-                    <Ionicons 
-                      name={item.status === 'upcoming' ? 'radio-button-on' : 'time'} 
-                      size={item.status === 'upcoming' ? 24 : 20} 
-                      color="#fff" 
-                    />
-                  </View>
-                  <View style={styles.scheduleInfo}>
-                    <View style={styles.scheduleTitleRow}>
-                      <Text style={[
-                        styles.scheduleItemTitle,
-                        item.status === 'upcoming' && styles.scheduleItemTitleActive,
-                      ]} numberOfLines={2}>
-                        {item.title}
-                      </Text>
-                      {item.status === 'upcoming' && (
-                        <View style={styles.upcomingBadge}>
-                          <Text style={styles.upcomingBadgeText}>NEXT</Text>
-                        </View>
-                      )}
-                    </View>
-                    <View style={styles.scheduleMetaRow}>
-                      <View style={styles.scheduleMetaItem}>
-                        <Ionicons name="time-outline" size={14} color="#4c6b5f" />
-                        <Text style={styles.scheduleTime}>{item.timeRange}</Text>
-                      </View>
-                    </View>
-                    <View style={styles.scheduleDayRow}>
-                      <Ionicons name="calendar-outline" size={14} color="#15A97A" />
-                      <Text style={styles.scheduleDay}>{item.day}</Text>
-                    </View>
+              
+              {/* Table Structure */}
+              <View style={styles.tableContainer}>
+                {/* Table Header */}
+                <View style={styles.tableHeader}>
+                  <View style={styles.tableHeaderCellProgram}>
+                    <Text style={styles.tableHeaderText}>Program</Text>
                   </View>
                 </View>
-              ))}
+                
+                {/* Table Rows */}
+                {scheduleItems.map((item, index) => (
+                  <View
+                    key={item.id}
+                    style={[
+                      styles.tableRow,
+                      item.status === 'upcoming' && styles.tableRowActive,
+                      index === scheduleItems.length - 1 && styles.tableRowLast,
+                    ]}
+                  >
+                    <View style={styles.tableCellProgram}>
+                      <View style={styles.programMetaRow}>
+                        <View style={styles.programMetaItem}>
+                          <Ionicons name="time-outline" size={12} color="#4c6b5f" />
+                          <Text style={styles.programMetaText}>
+                            {item.timeRange.split(' - ')[0]}
+                          </Text>
+                        </View>
+                        <View style={styles.programMetaItem}>
+                          <Ionicons name="calendar-outline" size={12} color="#15A97A" />
+                          <Text style={styles.programMetaText}>
+                            {item.day}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.programHeaderRow}>
+                        <MarqueeText 
+                          text={item.title}
+                          style={[
+                            styles.tableCellProgramText,
+                            item.status === 'upcoming' && styles.tableCellProgramTextActive,
+                          ]}
+                        />
+                        {item.status === 'upcoming' && (
+                          <View style={styles.tableBadge}>
+                            <Text style={styles.tableBadgeText}>NEXT</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
             </View>
           )}
           
@@ -1092,103 +1085,95 @@ const styles = StyleSheet.create({
   infoRow: {
     width: '100%',
     paddingHorizontal: 16,
-    marginBottom: 24,
+    marginTop: 20,
+    marginBottom: 4,
   },
   nowPlayingCard: {
     backgroundColor: BRAND_COLORS.secondary,
-    padding: 20,
-    borderRadius: 24,
-    marginBottom: 16,
+    borderRadius: 16,
+    marginBottom: 12,
     shadowColor: '#0d4130',
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: 'rgba(255,255,255,0.15)',
+    overflow: 'hidden',
   },
-  nowPlayingHeader: {
-    marginBottom: 14,
+  nowPlayingContent: {
+    padding: 14,
   },
-  nowPlayingHeaderLeft: {
+  nowPlayingLeft: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   nowPlayingIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 14,
-    borderWidth: 2,
+    marginRight: 12,
+    borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.3)',
+  },
+  nowPlayingInfo: {
+    flex: 1,
+  },
+  nowPlayingHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
   },
   liveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 77, 79, 0.25)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-    marginBottom: 8,
-    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255, 77, 79, 0.3)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255, 77, 79, 0.4)',
+    borderColor: 'rgba(255, 77, 79, 0.5)',
   },
   liveDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: '#ff4d4f',
-    marginRight: 6,
-    shadowColor: '#ff4d4f',
-    shadowOpacity: 0.8,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 0 },
+    marginRight: 5,
   },
   liveText: {
     color: '#fff',
-    fontWeight: 'bold',
-    letterSpacing: 1.2,
-    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    fontSize: 9,
   },
   nowPlayingLabel: {
-    color: 'rgba(255,255,255,0.9)',
+    color: 'rgba(255,255,255,0.85)',
     textTransform: 'uppercase',
-    fontSize: 11,
-    letterSpacing: 1.5,
+    fontSize: 10,
+    letterSpacing: 1.2,
     fontWeight: '600',
-  },
-  nowPlayingTitleContainer: {
-    marginBottom: 14,
   },
   nowPlayingTitle: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
-    lineHeight: 22,
+    lineHeight: 20,
+    marginBottom: 6,
   },
   nowPlayingMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  nowPlayingMetaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    gap: 6,
   },
   nowPlayingMeta: {
-    marginLeft: 8,
-    color: 'rgba(255,255,255,0.95)',
+    color: 'rgba(255,255,255,0.8)',
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   cardLabel: {
     color: 'rgba(255,255,255,0.8)',
@@ -1217,82 +1202,81 @@ const styles = StyleSheet.create({
   },
   nextCard: {
     backgroundColor: '#fff',
-    padding: 20,
-    borderRadius: 24,
+    borderRadius: 16,
     shadowColor: BRAND_COLORS.accent,
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    borderWidth: 2,
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    borderWidth: 1.5,
     borderColor: BRAND_COLORS.accent,
     elevation: 4,
+    overflow: 'hidden',
   },
-  nextCardHeader: {
-    marginBottom: 12,
+  nextCardContent: {
+    padding: 14,
   },
-  nextCardHeaderLeft: {
+  nextCardLeft: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   nextCardIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: BRAND_COLORS.accent,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
     shadowColor: BRAND_COLORS.accent,
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+  nextCardInfo: {
+    flex: 1,
+  },
+  nextCardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
   },
   nextCardLabel: {
     color: BRAND_COLORS.textDark,
     textTransform: 'uppercase',
-    fontSize: 11,
-    letterSpacing: 1.5,
+    fontSize: 10,
+    letterSpacing: 1.2,
     fontWeight: '600',
-    marginBottom: 4,
   },
   nextCardBadge: {
     backgroundColor: BRAND_COLORS.accent,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 10,
-    alignSelf: 'flex-start',
+    borderRadius: 8,
   },
   nextCardBadgeText: {
     color: '#fff',
     fontSize: 9,
-    fontWeight: 'bold',
+    fontWeight: '700',
     letterSpacing: 0.5,
   },
   nextCardTitle: {
     fontSize: 15,
     fontWeight: '700',
     color: BRAND_COLORS.primary,
-    marginBottom: 12,
+    marginBottom: 6,
     lineHeight: 20,
   },
   nextCardMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  nextCardMetaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: BRAND_COLORS.background,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
+    gap: 6,
   },
   nextCardMeta: {
-    marginLeft: 8,
     color: '#4c6b5f',
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '500',
   },
   waveformContainer: {
     flexDirection: 'row',
@@ -1377,14 +1361,15 @@ const styles = StyleSheet.create({
   },
   scheduleSection: {
     width: '100%',
-    marginTop: 32,
-    paddingHorizontal: 16,
+    marginTop: 4,
+    paddingHorizontal: 0,
   },
   scheduleHeaderContainer: {
     backgroundColor: '#fff',
-    borderRadius: 24,
-    padding: 20,
+    borderRadius: 16,
+    padding: 16,
     marginBottom: 16,
+    marginHorizontal: 8,
     shadowColor: '#0d4130',
     shadowOpacity: 0.1,
     shadowRadius: 12,
@@ -1450,114 +1435,103 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     fontWeight: '500',
   },
-  scheduleCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: 18,
-    marginBottom: 12,
+  // Table Structure Styles
+  tableContainer: {
     backgroundColor: '#fff',
-    borderRadius: 20,
-    shadowColor: '#0d4130',
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
-    borderWidth: 1.5,
-    borderColor: '#e2f2ea',
-  },
-  scheduleCardActive: {
-    borderColor: BRAND_COLORS.accent,
-    backgroundColor: '#fff',
-    borderWidth: 2,
-    shadowColor: BRAND_COLORS.accent,
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-  },
-  scheduleCardLast: {
-    marginBottom: 0,
-  },
-  scheduleIcon: {
-    width: 52,
-    height: 52,
     borderRadius: 16,
-    backgroundColor: BRAND_COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-    shadowColor: BRAND_COLORS.primary,
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+    overflow: 'hidden',
+    marginHorizontal: 8,
+    shadowColor: '#0d4130',
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
+    borderWidth: 1,
+    borderColor: '#d6eee4',
   },
-  scheduleIconActive: {
-    backgroundColor: BRAND_COLORS.accent,
-    shadowColor: BRAND_COLORS.accent,
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: BRAND_COLORS.primary,
+    borderBottomWidth: 2,
+    borderBottomColor: BRAND_COLORS.secondary,
   },
-  scheduleInfo: {
+  tableHeaderCellProgram: {
     flex: 1,
-    paddingTop: 2,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
-  scheduleTitleRow: {
+  tableHeaderText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2f2ea',
+    backgroundColor: '#fff',
+  },
+  tableRowActive: {
+    backgroundColor: '#f0fdf9',
+    borderLeftWidth: 3,
+    borderLeftColor: BRAND_COLORS.accent,
+  },
+  tableRowLast: {
+    borderBottomWidth: 0,
+  },
+  tableCellProgram: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  programHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8,
+    marginTop: 8,
+    gap: 8,
   },
-  scheduleItemTitle: {
-    fontSize: 14,
-    fontWeight: '700',
+  tableCellProgramText: {
     color: BRAND_COLORS.textDark,
-    flex: 1,
-    lineHeight: 19,
-  },
-  scheduleItemTitleActive: {
-    color: BRAND_COLORS.primary,
-  },
-  upcomingBadge: {
-    backgroundColor: BRAND_COLORS.accent,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginLeft: 8,
-  },
-  upcomingBadgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
-  },
-  scheduleMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  scheduleMetaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: BRAND_COLORS.background,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-  },
-  scheduleTime: {
-    marginLeft: 6,
-    color: '#4c6b5f',
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '600',
+    lineHeight: 21,
+    flex: 1,
   },
-  scheduleDayRow: {
+  tableCellProgramTextActive: {
+    color: BRAND_COLORS.primary,
+    fontWeight: '700',
+  },
+  tableBadge: {
+    backgroundColor: BRAND_COLORS.accent,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  tableBadgeText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  programMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    gap: 12,
+    marginBottom: 4,
   },
-  scheduleDay: {
-    marginLeft: 6,
-    color: '#15A97A',
-    fontWeight: '700',
-    fontSize: 13,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+  programMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  programMetaText: {
+    color: '#4c6b5f',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
 
