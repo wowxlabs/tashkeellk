@@ -13,6 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { Magnetometer } from 'expo-sensors';
+import * as Haptics from 'expo-haptics';
 import { useNavigation } from '@react-navigation/native';
 
 // Mecca coordinates (Kaaba)
@@ -83,6 +84,7 @@ export default function QiblaScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [permissionGranted, setPermissionGranted] = useState(false);
+  const [isScreenFocused, setIsScreenFocused] = useState(true);
   const navigation = useNavigation();
 
   // Animated values for smooth rotation
@@ -92,6 +94,9 @@ export default function QiblaScreen() {
   // Keep track of continuous rotation values (to avoid snapping)
   const needleRotationRef = useRef(0);
   const northRotationRef = useRef(0);
+  
+  // Track previous heading for vibration feedback
+  const previousHeadingRef = useRef(null);
 
   useEffect(() => {
     navigation.setOptions({
@@ -101,10 +106,14 @@ export default function QiblaScreen() {
     });
   }, [navigation]);
 
-  // Log when Qibla screen is opened
+  // Log when Qibla screen is opened and track focus state
   useFocusEffect(
     React.useCallback(() => {
       logQiblaOpen();
+      setIsScreenFocused(true);
+      return () => {
+        setIsScreenFocused(false);
+      };
     }, [])
   );
 
@@ -236,6 +245,57 @@ export default function QiblaScreen() {
     animateRotation(northRotationAnim, northRotationRef, target);
   }, [heading]);
 
+  // Vibration feedback when device moves (only when screen is focused)
+  useEffect(() => {
+    // Only trigger vibrations when screen is focused
+    if (!isScreenFocused) {
+      return;
+    }
+
+    if (previousHeadingRef.current === null || qiblaBearing === null) {
+      previousHeadingRef.current = heading;
+      return;
+    }
+
+    // Calculate the minimum angle difference (accounting for 360° wrap)
+    let angleDiff = Math.abs(heading - previousHeadingRef.current);
+    if (angleDiff > 180) {
+      angleDiff = 360 - angleDiff;
+    }
+
+    // Calculate alignment
+    let relativeAngle = normalizeAngle(qiblaBearing - heading);
+    if (relativeAngle > 180) {
+      relativeAngle = relativeAngle - 360;
+    }
+    const absRelativeAngle = Math.abs(relativeAngle);
+    const isAligned = absRelativeAngle < 1;
+
+    // Check if we just became aligned
+    const prevRelativeAngle = normalizeAngle(qiblaBearing - previousHeadingRef.current);
+    let prevAbsRelativeAngle = Math.abs(prevRelativeAngle);
+    if (prevRelativeAngle > 180) {
+      prevAbsRelativeAngle = Math.abs(prevRelativeAngle - 360);
+    }
+    const wasAligned = prevAbsRelativeAngle < 1;
+    const justAligned = !wasAligned && isAligned;
+
+    // Trigger vibration when heading changes by 1 degree or more
+    if (angleDiff >= 1) {
+      if (justAligned) {
+        // Distinctive vibration pattern when aligned
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        setTimeout(() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }, 100);
+      } else {
+        // Light vibration for movement
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+      previousHeadingRef.current = heading;
+    }
+  }, [heading, qiblaBearing, isScreenFocused]);
+
   const needleRotationInterpolated = needleRotationAnim.interpolate({
     inputRange: [-720, 720],
     outputRange: ['-720deg', '720deg'],
@@ -283,6 +343,39 @@ export default function QiblaScreen() {
   const lat = location?.coords.latitude ?? 0;
   const lon = location?.coords.longitude ?? 0;
 
+  // Calculate relative angle between device heading and Qibla direction
+  const getAlignmentInfo = () => {
+    if (qiblaBearing === null) return null;
+    
+    let relativeAngle = normalizeAngle(qiblaBearing - heading);
+    
+    // Convert to -180 to 180 range for easier interpretation
+    if (relativeAngle > 180) {
+      relativeAngle = relativeAngle - 360;
+    }
+    
+    const absAngle = Math.abs(relativeAngle);
+    const isAligned = absAngle < 1; // Consider aligned if within 1 degree
+    
+    let direction = '';
+    if (isAligned) {
+      direction = 'Aligned!';
+    } else if (relativeAngle > 0) {
+      direction = 'Turn Right';
+    } else {
+      direction = 'Turn Left';
+    }
+    
+    return {
+      relativeAngle: absAngle,
+      direction,
+      isAligned,
+      rawAngle: relativeAngle,
+    };
+  };
+
+  const alignmentInfo = getAlignmentInfo();
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
       {/* Verification Info Card */}
@@ -324,6 +417,48 @@ export default function QiblaScreen() {
         )}
       </View>
 
+      {/* Alignment Guidance Card */}
+      {alignmentInfo && (
+        <View style={[
+          styles.alignmentCard,
+          alignmentInfo.isAligned && styles.alignmentCardSuccess
+        ]}>
+          <View style={styles.alignmentContent}>
+            <View style={styles.alignmentHeader}>
+              <Ionicons 
+                name={alignmentInfo.isAligned ? "checkmark-circle" : "arrow-forward-circle"} 
+                size={24} 
+                color={alignmentInfo.isAligned ? BRAND_COLORS.primary : BRAND_COLORS.accent} 
+              />
+              <Text style={[
+                styles.alignmentTitle,
+                alignmentInfo.isAligned && styles.alignmentTitleSuccess
+              ]}>
+                {alignmentInfo.isAligned ? 'Aligned with Qibla!' : 'Align Your Device'}
+              </Text>
+            </View>
+            {!alignmentInfo.isAligned && (
+              <View style={styles.alignmentInstructions}>
+                <Text style={styles.alignmentDirection}>
+                  {alignmentInfo.direction}
+                </Text>
+                <Text style={styles.alignmentAngle}>
+                  {alignmentInfo.relativeAngle.toFixed(1)}° to align
+                </Text>
+                <Text style={styles.alignmentHint}>
+                  Rotate your device until the orange needle points straight up
+                </Text>
+              </View>
+            )}
+            {alignmentInfo.isAligned && (
+              <Text style={styles.alignmentSuccessText}>
+                You are now facing the Qibla direction. The orange needle should be pointing straight up.
+              </Text>
+            )}
+          </View>
+        </View>
+      )}
+
       {/* Compass Container */}
       <View style={styles.compassCard}>
         <View style={styles.compassOuter}>
@@ -336,6 +471,7 @@ export default function QiblaScreen() {
             {Array.from({ length: 12 }).map((_, idx) => {
               const degree = idx * 30;
               const isMajor = degree % 90 === 0;
+              const isZero = degree === 0; // 0° marker aligns with "Point Here"
               return (
                 <View
                   key={degree}
@@ -355,12 +491,18 @@ export default function QiblaScreen() {
                     style={[
                       styles.marker,
                       isMajor ? styles.markerMajor : styles.markerMinor,
+                      isZero && styles.markerZero, // Highlight 0° marker
                     ]}
                   />
                 </View>
               );
             })}
           </LinearGradient>
+
+          {/* Point Here label at 12 o'clock */}
+          <View style={styles.pointHereLabel}>
+            <Text style={styles.pointHereText}>Point Here</Text>
+          </View>
 
           {/* Center circle */}
           <View style={styles.centerLayer}>
@@ -597,6 +739,16 @@ const styles = StyleSheet.create({
     height: 16,
     backgroundColor: '#14b8a6',
   },
+  markerZero: {
+    width: 4,
+    height: 30,
+    backgroundColor: BRAND_COLORS.primary,
+    shadowColor: BRAND_COLORS.primary,
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 3,
+  },
   centerLayer: {
     position: 'absolute',
     top: 0,
@@ -787,6 +939,92 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: BRAND_COLORS.textDark,
     lineHeight: 18,
+  },
+  alignmentCard: {
+    backgroundColor: '#fff7ed',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: BRAND_COLORS.accent,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  alignmentCardSuccess: {
+    backgroundColor: '#f0fdf9',
+    borderColor: BRAND_COLORS.primary,
+  },
+  alignmentContent: {
+    gap: 12,
+  },
+  alignmentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  alignmentTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: BRAND_COLORS.accent,
+  },
+  alignmentTitleSuccess: {
+    color: BRAND_COLORS.primary,
+  },
+  alignmentInstructions: {
+    gap: 8,
+  },
+  alignmentDirection: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: BRAND_COLORS.accent,
+    textAlign: 'center',
+  },
+  alignmentAngle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1e293b',
+    textAlign: 'center',
+  },
+  alignmentHint: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  alignmentSuccessText: {
+    fontSize: 14,
+    color: BRAND_COLORS.primary,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  pointHereLabel: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [
+      { translateX: -40 },
+      { translateY: -180 }, // Position above the 0° marker (marker at -140px, label above it)
+    ],
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 21,
+  },
+  pointHereText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: BRAND_COLORS.primary,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
 });
 
