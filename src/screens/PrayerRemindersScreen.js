@@ -18,8 +18,6 @@ import {
   setPrayerReminderToggles,
   getPrayerReminderMinutesBefore,
   setPrayerReminderMinutesBefore,
-  getSelectedLocation,
-  setSelectedLocation,
   getSelectedAdhanSoundId,
   setAdhanSound,
   getAdhanSoundOptions,
@@ -28,7 +26,8 @@ import {
   getAdhanSoundFilename,
 } from '../services/prayerReminders';
 import * as Notifications from 'expo-notifications';
-import { logPrayerReminderToggle, logPrayerLocationChange, logAdhanSoundChange } from '../services/analytics';
+import { logPrayerReminderToggle, logAdhanSoundChange } from '../services/analytics';
+import { useNavigation } from '@react-navigation/native';
 
 const BRAND_COLORS = {
   primary: '#0F8D6B',
@@ -41,10 +40,6 @@ const BRAND_COLORS = {
 };
 
 const PRAYER_NAMES = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
-const LOCATIONS = [
-  { id: 'uk', label: 'UK (Slough)' },
-  { id: 'lk', label: 'Sri Lanka (Colombo)' },
-];
 const MINUTES_OPTIONS = [0, 5, 10, 15, 20, 30];
 
 // Static mapping for sound files (required for Metro bundler)
@@ -61,7 +56,6 @@ const PrayerRemindersScreen = () => {
     Maghrib: true,
     Isha: true,
   });
-  const [location, setLocation] = useState('uk');
   const [minutesBefore, setMinutesBefore] = useState(0);
   const [adhanSoundId, setAdhanSoundId] = useState('sound1');
   const [loading, setLoading] = useState(true);
@@ -69,6 +63,7 @@ const PrayerRemindersScreen = () => {
   const [playingSoundId, setPlayingSoundId] = useState(null);
   const [showTestModal, setShowTestModal] = useState(false);
   const soundRef = useRef(null);
+  const navigation = useNavigation();
 
   useEffect(() => {
     loadSettings();
@@ -84,15 +79,13 @@ const PrayerRemindersScreen = () => {
   const loadSettings = async () => {
     try {
       setLoading(true);
-      const [loadedToggles, loadedLocation, loadedMinutes, loadedSound] = await Promise.all([
+      const [loadedToggles, loadedMinutes, loadedSound] = await Promise.all([
         getPrayerReminderToggles(),
-        getSelectedLocation(),
         getPrayerReminderMinutesBefore(),
         getSelectedAdhanSoundId(),
       ]);
 
       setToggles(loadedToggles);
-      setLocation(loadedLocation);
       setMinutesBefore(loadedMinutes);
       setAdhanSoundId(loadedSound);
     } catch (error) {
@@ -108,13 +101,6 @@ const PrayerRemindersScreen = () => {
     await setPrayerReminderToggles(newToggles);
     await schedulePrayerReminders();
     logPrayerReminderToggle(prayerName, value);
-  };
-
-  const handleLocationChange = async (newLocation) => {
-    setLocation(newLocation);
-    await setSelectedLocation(newLocation);
-    await schedulePrayerReminders();
-    logPrayerLocationChange(newLocation);
   };
 
   const handleMinutesChange = async (minutes) => {
@@ -299,6 +285,22 @@ const PrayerRemindersScreen = () => {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {/* Prayer Time Settings Shortcut */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Prayer Time Settings</Text>
+        <Text style={styles.sectionSubtitle}>
+          Adjust your prayer time calculation method and location settings.
+        </Text>
+        <TouchableOpacity
+          style={styles.settingsButton}
+          onPress={() => navigation.navigate('Prayer Settings')}
+        >
+          <Ionicons name="settings-outline" size={20} color={BRAND_COLORS.textLight} />
+          <Text style={styles.settingsButtonText}>Open Prayer Time Settings</Text>
+          <Ionicons name="chevron-forward" size={18} color={BRAND_COLORS.textLight} />
+        </TouchableOpacity>
+      </View>
+
       {/* Battery Info Section */}
       <View style={styles.batteryInfoSection}>
         <Ionicons name="battery-charging" size={20} color={BRAND_COLORS.textDark} />
@@ -326,35 +328,6 @@ const PrayerRemindersScreen = () => {
               thumbColor={toggles[prayerName] ? BRAND_COLORS.primary : '#f4f3f4'}
             />
           </View>
-        ))}
-      </View>
-
-      {/* Location Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Location</Text>
-        <Text style={styles.sectionSubtitle}>Select your location for accurate prayer times</Text>
-
-        {LOCATIONS.map((loc) => (
-          <TouchableOpacity
-            key={loc.id}
-            style={[
-              styles.locationOption,
-              location === loc.id && styles.locationOptionActive,
-            ]}
-            onPress={() => handleLocationChange(loc.id)}
-          >
-            <Text
-              style={[
-                styles.locationOptionText,
-                location === loc.id && styles.locationOptionTextActive,
-              ]}
-            >
-              {loc.label}
-            </Text>
-            {location === loc.id && (
-              <Ionicons name="checkmark-circle" size={24} color={BRAND_COLORS.primary} />
-            )}
-          </TouchableOpacity>
         ))}
       </View>
 
@@ -647,6 +620,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: BRAND_COLORS.textDark,
     lineHeight: 18,
+  },
+  settingsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: BRAND_COLORS.primary,
+    marginTop: 4,
+  },
+  settingsButtonText: {
+    flex: 1,
+    marginHorizontal: 8,
+    fontSize: 15,
+    color: BRAND_COLORS.textLight,
+    fontWeight: '600',
   },
   testButton: {
     flexDirection: 'row',

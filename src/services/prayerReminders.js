@@ -1,26 +1,17 @@
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, AppState } from 'react-native';
+import * as Location from 'expo-location';
 import axios from 'axios';
 import { DateTime } from 'luxon';
+import { getCalculationMethod } from './prayerSettings';
 
 const PRAYER_NAMES = {
-  'Fajr': 'Fajr',
-  'Dhuhr': 'Dhuhr',
-  'Asr': 'Asr',
-  'Maghrib': 'Maghrib',
-  'Isha': 'Isha',
-};
-
-const PRAYER_API_URLS = {
-  'uk': {
-    url: 'https://www.tashkeel.lk/api/uk-prayer-times.json',
-    timeZone: 'Europe/London',
-  },
-  'lk': {
-    url: 'https://www.tashkeel.lk/api/srilanka-prayer-times.json',
-    timeZone: 'Asia/Colombo',
-  },
+  Fajr: 'Fajr',
+  Dhuhr: 'Dhuhr',
+  Asr: 'Asr',
+  Maghrib: 'Maghrib',
+  Isha: 'Isha',
 };
 
 // Sound options for adhan notifications
@@ -31,10 +22,12 @@ const ADHAN_SOUND_OPTIONS = [
 
 const STORAGE_KEYS = {
   PRAYER_REMINDERS_ENABLED: '@prayerReminders:enabled',
-  LOCATION: '@prayerReminders:location',
+  LOCATION: '@prayerReminders:location', // kept for backwards compatibility (no longer used for API)
   MINUTES_BEFORE: '@prayerReminders:minutesBefore',
   ADHAN_SOUND: '@prayerReminders:adhanSound',
 };
+
+const LOCATION_COORDS_KEY = 'USER_LOCATION_COORDS';
 
 // Get prayer reminder toggles
 export async function getPrayerReminderToggles() {
@@ -152,40 +145,97 @@ export function getAdhanSoundOptions() {
   return ADHAN_SOUND_OPTIONS;
 }
 
-// Fetch today's prayer times from API
-export async function getTodayPrayerTimes() {
+// Helper to get current coordinates and timezone (shared with Home)
+async function getCoordsAndTimeZone() {
   try {
-    const location = await getSelectedLocation();
-    const config = PRAYER_API_URLS[location];
-    if (!config) {
-      throw new Error(`Unknown location: ${location}`);
+    let coords = null;
+    const saved = await AsyncStorage.getItem(LOCATION_COORDS_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed?.latitude && parsed?.longitude) {
+        coords = parsed;
+      }
     }
 
-    const response = await axios.get(config.url);
-    const entries = response.data || [];
-    const now = DateTime.now().setZone(config.timeZone);
-    const today = now.toFormat('yyyy-LL-dd');
-
-    // Find today's prayer times
-    // Use the same parsing method as HomeScreen for consistency
-    const todayPrayers = {};
-    entries.forEach((item) => {
-      const prayerName = item.playlist ? item.playlist.charAt(0).toUpperCase() + item.playlist.slice(1) : null;
-      if (prayerName && PRAYER_NAMES[prayerName]) {
-        // Parse using DateTime.fromFormat same as HomeScreen
-        const prayerDateTime = DateTime.fromFormat(
-          `${item.start_date} ${item.start_time}`,
-          'yyyy-LL-dd HHmm',
-          { zone: config.timeZone }
-        );
-
-        if (prayerDateTime.isValid && item.start_date === today) {
-          todayPrayers[prayerName] = prayerDateTime;
-        }
+    if (!coords) {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const position = await Location.getCurrentPositionAsync({});
+        coords = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        };
+        await AsyncStorage.setItem(LOCATION_COORDS_KEY, JSON.stringify(coords));
       }
+    }
+
+    const timeZoneId =
+      Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
+    return { coords, timeZoneId };
+  } catch (error) {
+    console.error('Error getting coords/timezone for prayer reminders:', error);
+    const timeZoneId =
+      Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    return { coords: null, timeZoneId };
+  }
+}
+
+// Fetch today's prayer times from API (using coords + method)
+export async function getTodayPrayerTimes() {
+  try {
+    const { coords, timeZoneId } = await getCoordsAndTimeZone();
+    if (!coords) {
+      throw new Error('No coordinates available for today prayer times');
+    }
+    const method = await getCalculationMethod();
+    const today = DateTime.now().setZone(timeZoneId);
+    const apiDate = today.toFormat('yyyy-LL-dd');
+
+    const response = await axios.get('https://api.tashkeel.lk/v1/prayertimes', {
+      params: {
+        lat: coords.latitude,
+        lon: coords.longitude,
+        date: apiDate,
+        method: method || 'ISNA',
+      },
+      headers: { Accept: 'application/json' },
     });
 
-    return todayPrayers;
+    const times = response.data?.data?.times || {};
+
+    const result = {};
+    const labels = [
+      { key: 'fajr', name: 'Fajr' },
+      { key: 'dhuhr', name: 'Dhuhr' },
+      { key: 'asr', name: 'Asr' },
+      { key: 'maghrib', name: 'Maghrib' },
+      { key: 'isha', name: 'Isha' },
+    ];
+
+    labels.forEach(({ key, name }) => {
+      const t = times[key];
+      if (!t) return;
+      const [hourStr, minuteStr] = String(t).split(':');
+      const hour = parseInt(hourStr, 10);
+      const minute = parseInt(minuteStr, 10);
+      if (Number.isNaN(hour) || Number.isNaN(minute)) return;
+
+      const dt = DateTime.fromObject(
+        {
+          year: today.year,
+          month: today.month,
+          day: today.day,
+          hour,
+          minute,
+        },
+        { zone: timeZoneId }
+      );
+
+      result[name] = dt;
+    });
+
+    return result;
   } catch (error) {
     console.error('Error fetching prayer times:', error);
     return {};
@@ -254,58 +304,66 @@ async function scheduleSinglePrayerNotification(prayerName, prayerDateTime, minu
   }
 }
 
-// Get prayer times for a specific date
-async function getPrayerTimesForDate(targetDate, location) {
+// Get prayer times for a specific date using the Tashkeel API
+async function getPrayerTimesForDate(targetDate) {
   try {
-    const config = PRAYER_API_URLS[location];
-    if (!config) {
-      throw new Error(`Unknown location: ${location}`);
+    const { coords, timeZoneId } = await getCoordsAndTimeZone();
+    if (!coords) {
+      throw new Error('No coordinates available for prayer reminder scheduling');
     }
+    const method = await getCalculationMethod();
+    const dateInZone = targetDate.setZone(timeZoneId);
+    const dateStr = dateInZone.toFormat('yyyy-LL-dd');
 
-    const response = await axios.get(config.url);
-    const entries = response.data || [];
-    const dateStr = targetDate.toFormat('yyyy-LL-dd');
+    const response = await axios.get('https://api.tashkeel.lk/v1/prayertimes', {
+      params: {
+        lat: coords.latitude,
+        lon: coords.longitude,
+        date: dateStr,
+        method: method || 'ISNA',
+      },
+      headers: { Accept: 'application/json' },
+    });
+
+    const times = response.data?.data?.times || {};
 
     const prayers = {};
-    entries.forEach((item) => {
-      if (!item.playlist || item.start_date !== dateStr) return;
-      
-      // Normalize prayer name: capitalize first letter, handle variations
-      const rawName = item.playlist.toLowerCase();
-      let prayerName = null;
-      
-      // Map common variations to standard names
-      if (rawName === 'fajr') prayerName = 'Fajr';
-      else if (rawName === 'dhuhr' || rawName === 'zuhr' || rawName === 'dhur') prayerName = 'Dhuhr';
-      else if (rawName === 'asr') prayerName = 'Asr';
-      else if (rawName === 'maghrib') prayerName = 'Maghrib';
-      else if (rawName === 'isha' || rawName === 'isha\'a') prayerName = 'Isha';
-      else {
-        // Fallback: capitalize first letter
-        prayerName = item.playlist.charAt(0).toUpperCase() + item.playlist.slice(1).toLowerCase();
-      }
-      
-      if (prayerName && PRAYER_NAMES[prayerName]) {
-        const prayerDateTime = DateTime.fromFormat(
-          `${item.start_date} ${item.start_time}`,
-          'yyyy-LL-dd HHmm',
-          { zone: config.timeZone }
-        );
+    const labels = [
+      { key: 'fajr', name: 'Fajr' },
+      { key: 'dhuhr', name: 'Dhuhr' },
+      { key: 'asr', name: 'Asr' },
+      { key: 'maghrib', name: 'Maghrib' },
+      { key: 'isha', name: 'Isha' },
+    ];
 
-        if (prayerDateTime.isValid) {
-          prayers[prayerName] = prayerDateTime;
-          console.log(`📿 Found ${prayerName} prayer at ${prayerDateTime.toFormat('HH:mm')} for ${dateStr}`);
-        } else {
-          console.warn(`⚠️ Invalid date/time for ${prayerName}: ${item.start_date} ${item.start_time}`);
-        }
-      } else {
-        console.log(`ℹ️ Skipping unknown prayer: ${item.playlist} (normalized: ${prayerName})`);
-      }
+    labels.forEach(({ key, name }) => {
+      const t = times[key];
+      if (!t) return;
+      const [hourStr, minuteStr] = String(t).split(':');
+      const hour = parseInt(hourStr, 10);
+      const minute = parseInt(minuteStr, 10);
+      if (Number.isNaN(hour) || Number.isNaN(minute)) return;
+
+      const prayerDateTime = DateTime.fromObject(
+        {
+          year: dateInZone.year,
+          month: dateInZone.month,
+          day: dateInZone.day,
+          hour,
+          minute,
+        },
+        { zone: timeZoneId }
+      );
+
+      prayers[name] = prayerDateTime;
+      console.log(
+        `📿 API ${name} prayer at ${prayerDateTime.toFormat('HH:mm')} for ${dateStr}`
+      );
     });
 
     return prayers;
   } catch (error) {
-    console.error('Error fetching prayer times for date:', error);
+    console.error('Error fetching prayer times for date from API:', error);
     return {};
   }
 }
@@ -369,9 +427,8 @@ export async function schedulePrayerReminders() {
     // Ensure channel is set up with the correct sound (Android only)
     await ensurePrayerReminderChannel(soundFilename);
     
-    const location = await getSelectedLocation();
-    const config = PRAYER_API_URLS[location];
-    const now = DateTime.now().setZone(config.timeZone);
+    const { timeZoneId } = await getCoordsAndTimeZone();
+    const now = DateTime.now().setZone(timeZoneId);
 
     let scheduledCount = 0;
     const daysScheduled = new Set();
@@ -379,7 +436,7 @@ export async function schedulePrayerReminders() {
     // Schedule for today and tomorrow only
     for (let dayOffset = 0; dayOffset < 2; dayOffset++) {
       const targetDate = now.plus({ days: dayOffset });
-      const prayers = await getPrayerTimesForDate(targetDate, location);
+      const prayers = await getPrayerTimesForDate(targetDate);
 
       let dayHasPrayers = false;
       for (const [prayerName, prayerDateTime] of Object.entries(prayers)) {
@@ -453,9 +510,8 @@ export async function getScheduledPrayerReminders() {
 // Check if today's prayer reminders are scheduled
 export async function checkTodayPrayerReminders() {
   try {
-    const location = await getSelectedLocation();
-    const config = PRAYER_API_URLS[location];
-    const now = DateTime.now().setZone(config.timeZone);
+    const { timeZoneId } = await getCoordsAndTimeZone();
+    const now = DateTime.now().setZone(timeZoneId);
     const today = now.toFormat('yyyy-LL-dd');
     
     const scheduled = await getScheduledPrayerReminders();
@@ -464,7 +520,7 @@ export async function checkTodayPrayerReminders() {
       return prayerTime.isValid && prayerTime.toFormat('yyyy-LL-dd') === today;
     });
 
-    const todayPrayers = await getPrayerTimesForDate(now, location);
+    const todayPrayers = await getPrayerTimesForDate(now);
     const toggles = await getPrayerReminderToggles();
     
     // Count how many prayers should be scheduled today
@@ -483,9 +539,8 @@ export async function checkTodayPrayerReminders() {
 // Schedule daily refresh notification at 11 PM
 async function scheduleDailyRefreshNotification() {
   try {
-    const location = await getSelectedLocation();
-    const config = PRAYER_API_URLS[location];
-    const now = DateTime.now().setZone(config.timeZone);
+    const { timeZoneId } = await getCoordsAndTimeZone();
+    const now = DateTime.now().setZone(timeZoneId);
     
     // Calculate next 11 PM
     let next11PM = now.set({ hour: 23, minute: 0, second: 0, millisecond: 0 });
@@ -566,9 +621,8 @@ export function setupAppStateListener() {
     if (nextAppState === 'active') {
       console.log('📱 App became active, checking prayer reminders...');
       try {
-        const location = await getSelectedLocation();
-        const config = PRAYER_API_URLS[location];
-        const now = DateTime.now().setZone(config.timeZone);
+        const { timeZoneId } = await getCoordsAndTimeZone();
+        const now = DateTime.now().setZone(timeZoneId);
         const hour = now.hour;
 
         // Check if today's reminders are scheduled

@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { useColorScheme, Image, View, Text, StyleSheet, Linking, TouchableOpacity, Platform } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { useColorScheme, Image, View, Text, StyleSheet, Linking, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { logScreenView } from '../services/analytics';
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItem } from '@react-navigation/drawer';
@@ -13,6 +13,9 @@ import YouTubeScreen from '../screens/YouTubeScreen';
 import HomeScreen from '../screens/HomeScreen';
 import QiblaScreen from '../screens/QiblaScreen';
 import PrayerRemindersScreen from '../screens/PrayerRemindersScreen';
+import PrayerSettingsScreen from '../screens/PrayerSettingsScreen';
+import OnboardingLocationScreen from '../screens/OnboardingLocationScreen';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 const Drawer = createDrawerNavigator();
 
 const brandColors = {
@@ -30,6 +33,23 @@ export default function AppNavigator() {
   const insets = useSafeAreaInsets();
   const routeNameRef = useRef();
   const navigationRef = useRef();
+  const [checkingOnboarding, setCheckingOnboarding] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    const checkOnboarding = async () => {
+      try {
+        const coords = await AsyncStorage.getItem('USER_LOCATION_COORDS');
+        setShowOnboarding(!coords);
+      } catch (e) {
+        console.error('Error checking onboarding state:', e);
+        setShowOnboarding(false);
+      } finally {
+        setCheckingOnboarding(false);
+      }
+    };
+    checkOnboarding();
+  }, []);
 
   useEffect(() => {
     if (Platform.OS === 'android') {
@@ -70,7 +90,14 @@ export default function AppNavigator() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style="light" backgroundColor={brandColors.primary} translucent={Platform.OS === 'ios' ? false : true} />
-      <NavigationContainer
+      {checkingOnboarding ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: brandColors.background }}>
+          <ActivityIndicator size="large" color={brandColors.primary} />
+        </View>
+      ) : showOnboarding ? (
+        <OnboardingLocationScreen onComplete={() => setShowOnboarding(false)} />
+      ) : (
+        <NavigationContainer
         ref={navigationRef}
         theme={navigationTheme}
         onReady={() => {
@@ -267,8 +294,16 @@ export default function AppNavigator() {
               drawerIcon: ({ color, size }) => <Ionicons name="alarm-outline" size={size} color={color} />,
             }}
           />
+          <Drawer.Screen
+            name="Prayer Settings"
+            component={PrayerSettingsScreen}
+            options={{
+              drawerIcon: ({ color, size }) => <Ionicons name="settings-outline" size={size} color={color} />,
+            }}
+          />
         </Drawer.Navigator>
       </NavigationContainer>
+      )}
     </GestureHandlerRootView>
   );
 }
