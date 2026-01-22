@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Image, ScrollView, TouchableOpacity, Animated } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Image, ScrollView, TouchableOpacity, Animated, FlatList, Dimensions, Modal } from 'react-native';
 import axios from 'axios';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -22,6 +22,199 @@ const formatCountdown = (diff) => {
     return `${hours}h ${minutes}m ${seconds}s`;
   }
   return `${minutes}m ${seconds}s`;
+};
+
+const AnnouncementsCard = ({ announcements, loading }) => {
+  const screenWidth = Dimensions.get('window').width;
+  const cardWidth = screenWidth - 32; // Account for card margin (16*2)
+  const cardPadding = 32; // Card padding (16*2)
+  // Item width: full width of card content
+  const itemWidth = cardWidth - cardPadding;
+  const flatListRef = useRef(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
+  const autoScrollTimer = useRef(null);
+
+  useEffect(() => {
+    if (!announcements || announcements.length <= 1) return;
+
+    // Auto-rotate every 5 seconds
+    autoScrollTimer.current = setInterval(() => {
+      setCurrentIndex((prevIndex) => {
+        const nextIndex = (prevIndex + 1) % announcements.length;
+        flatListRef.current?.scrollToIndex({
+          index: nextIndex,
+          animated: true,
+        });
+        return nextIndex;
+      });
+    }, 5000);
+
+    return () => {
+      if (autoScrollTimer.current) {
+        clearInterval(autoScrollTimer.current);
+      }
+    };
+  }, [announcements]);
+
+  const onViewableItemsChanged = useRef(({ viewableItems }) => {
+    if (viewableItems.length > 0) {
+      setCurrentIndex(viewableItems[0].index);
+    }
+  }).current;
+
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50,
+  }).current;
+
+  if (loading) {
+    return (
+      <View style={styles.announcementsCard}>
+        <ActivityIndicator color="#0F8D6B" />
+      </View>
+    );
+  }
+
+  if (!announcements || announcements.length === 0) {
+    return null;
+  }
+
+  return (
+    <View style={styles.announcementsCard}>
+      <View style={styles.announcementsHeader}>
+        <Text style={styles.announcementsTitle}>Announcements</Text>
+        <Ionicons name="megaphone" size={18} color="#d0f0e4" />
+      </View>
+      <View style={styles.announcementsSliderContainer}>
+        <FlatList
+          ref={flatListRef}
+          data={announcements}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(item, index) => `announcement-${index}`}
+          style={{ width: '100%' }}
+          getItemLayout={(data, index) => ({
+            length: itemWidth,
+            offset: itemWidth * index,
+            index,
+          })}
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={viewabilityConfig}
+          onScrollToIndexFailed={(info) => {
+            // Handle scroll to index failure
+            const wait = new Promise(resolve => setTimeout(resolve, 500));
+            wait.then(() => {
+              flatListRef.current?.scrollToIndex({ index: info.index, animated: true });
+            });
+          }}
+          renderItem={({ item }) => {
+            const imageUrl = item.image 
+              ? (item.image.startsWith('http') 
+                  ? item.image 
+                  : `https://api.tashkeel.lk${item.image.startsWith('/') ? '' : '/'}${item.image}`)
+              : null;
+            
+            return (
+              <View style={[styles.announcementItem, { width: itemWidth }]}>
+                <TouchableOpacity
+                  style={styles.announcementCard}
+                  onPress={() => setSelectedAnnouncement(item)}
+                  activeOpacity={0.7}
+                >
+                  {imageUrl && (
+                    <Image
+                      source={{ uri: imageUrl }}
+                      style={styles.announcementThumb}
+                      resizeMode="cover"
+                      onError={(error) => {
+                        console.log('Image load error:', error.nativeEvent.error, 'URL:', imageUrl);
+                      }}
+                    />
+                  )}
+                  <View style={{ flex: 1 }}>
+                    {item.title && (
+                      <Text style={styles.announcementTitle} numberOfLines={2}>
+                        {item.title}
+                      </Text>
+                    )}
+                    {item.message && (
+                      <Text style={styles.announcementMessage} numberOfLines={2}>
+                        {item.message}
+                      </Text>
+                    )}
+                    {item.body && (
+                      <Text style={styles.announcementBody} numberOfLines={3}>
+                        {item.body}
+                      </Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              </View>
+            );
+          }}
+        />
+      </View>
+      {announcements.length > 1 && (
+        <View style={styles.announcementIndicators}>
+          {announcements.map((_, index) => (
+            <View
+              key={index}
+              style={[
+                styles.announcementDot,
+                index === currentIndex && styles.announcementDotActive,
+              ]}
+            />
+          ))}
+        </View>
+      )}
+      
+      {/* Announcement Detail Modal */}
+      <Modal
+        visible={selectedAnnouncement !== null}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setSelectedAnnouncement(null)}
+      >
+        {selectedAnnouncement && (
+          <View style={styles.announcementModalContainer}>
+            <View style={styles.announcementModalHeader}>
+              <TouchableOpacity
+                style={styles.announcementModalCloseButton}
+                onPress={() => setSelectedAnnouncement(null)}
+              >
+                <Ionicons name="close" size={24} color="#0B4733" />
+              </TouchableOpacity>
+              <Text style={styles.announcementModalHeaderTitle}>Announcement</Text>
+              <View style={{ width: 40 }} />
+            </View>
+            <ScrollView style={styles.announcementModalContent}>
+              {selectedAnnouncement.image && (
+                <Image
+                  source={{
+                    uri: selectedAnnouncement.image.startsWith('http')
+                      ? selectedAnnouncement.image
+                      : `https://api.tashkeel.lk${selectedAnnouncement.image.startsWith('/') ? '' : '/'}${selectedAnnouncement.image}`
+                  }}
+                  style={styles.announcementModalImage}
+                  resizeMode="cover"
+                />
+              )}
+              {selectedAnnouncement.title && (
+                <Text style={styles.announcementModalTitle}>{selectedAnnouncement.title}</Text>
+              )}
+              {selectedAnnouncement.message && (
+                <Text style={styles.announcementModalMessage}>{selectedAnnouncement.message}</Text>
+              )}
+              {selectedAnnouncement.body && (
+                <Text style={styles.announcementModalBody}>{selectedAnnouncement.body}</Text>
+              )}
+            </ScrollView>
+          </View>
+        )}
+      </Modal>
+    </View>
+  );
 };
 
 const PrayerCard = ({ label, accent, data, loading, error, currentDateTime }) => {
@@ -315,6 +508,9 @@ const HomeScreen = () => {
   const [latestBayans, setLatestBayans] = useState([]);
   const [calcMethod, setCalcMethod] = useState(null);
   const [locationName, setLocationName] = useState('Your Location');
+  const [announcements, setAnnouncements] = useState([]);
+  const [announcementsEnabled, setAnnouncementsEnabled] = useState(false);
+  const [announcementsLoading, setAnnouncementsLoading] = useState(false);
   const navigation = useNavigation();
 
   useEffect(() => {
@@ -564,6 +760,29 @@ const HomeScreen = () => {
   }, []);
 
   useEffect(() => {
+    setAnnouncementsLoading(true);
+    axios
+      .get('https://api.tashkeel.lk/announcements.json')
+      .then((response) => {
+        const data = response.data || {};
+        if (data.settings?.mobileEnabled === true && Array.isArray(data.announcements)) {
+          setAnnouncementsEnabled(true);
+          setAnnouncements(data.announcements);
+        } else {
+          setAnnouncementsEnabled(false);
+          setAnnouncements([]);
+        }
+      })
+      .catch(() => {
+        setAnnouncementsEnabled(false);
+        setAnnouncements([]);
+      })
+      .finally(() => {
+        setAnnouncementsLoading(false);
+      });
+  }, []);
+
+  useEffect(() => {
     const interval = setInterval(() => {
       setPrayerState((prev) => {
         if (!prev?.data?.nextDateTime) {
@@ -628,6 +847,12 @@ const HomeScreen = () => {
         error={prayerState.error}
         currentDateTime={DateTime.now().setZone(timeZoneId)}
       />
+      {announcementsEnabled && (
+        <AnnouncementsCard
+          announcements={announcements}
+          loading={announcementsLoading}
+        />
+      )}
       <BayansStrip
         items={latestBayans}
         onSelect={(item) => navigation.navigate('Bayans', { featuredVideo: item })}
@@ -931,6 +1156,135 @@ const styles = StyleSheet.create({
     color: '#4c6b5f',
     fontSize: 12,
     marginTop: 4,
+  },
+  announcementsCard: {
+    backgroundColor: '#0F8D6B',
+    borderRadius: 20,
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 0,
+    shadowColor: '#0f4d3a',
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
+  },
+  announcementsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  announcementsTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  announcementsSliderContainer: {
+    position: 'relative',
+    width: '100%',
+  },
+  announcementItem: {
+    paddingHorizontal: 0,
+    paddingVertical: 5,
+  },
+  announcementCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 10,
+    columnGap: 10,
+  },
+  announcementThumb: {
+    width: 52,
+    height: 52,
+    borderRadius: 10,
+  },
+  announcementTitle: {
+    color: '#0B4733',
+    fontWeight: '600',
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  announcementMessage: {
+    color: '#4c6b5f',
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  announcementBody: {
+    color: '#4c6b5f',
+    fontSize: 12,
+  },
+  announcementModalContainer: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+  announcementModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    backgroundColor: '#ffffff',
+  },
+  announcementModalCloseButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  announcementModalHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0B4733',
+  },
+  announcementModalContent: {
+    flex: 1,
+    padding: 16,
+  },
+  announcementModalImage: {
+    width: '100%',
+    height: 250,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  announcementModalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#0B4733',
+    marginBottom: 12,
+  },
+  announcementModalMessage: {
+    fontSize: 16,
+    color: '#4c6b5f',
+    lineHeight: 24,
+    marginBottom: 16,
+  },
+  announcementModalBody: {
+    fontSize: 15,
+    color: '#0B4733',
+    lineHeight: 24,
+  },
+  announcementIndicators: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 12,
+    gap: 8,
+  },
+  announcementDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  announcementDotActive: {
+    backgroundColor: '#fff',
+    width: 24,
   },
 });
 

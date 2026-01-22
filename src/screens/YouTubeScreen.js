@@ -23,7 +23,9 @@ const VIDEO_PLAYER_HEIGHT = Math.min(SCREEN_HEIGHT * 0.4, 350); // 40% of screen
 
 const YouTubeScreen = () => {
   const [videos, setVideos] = useState([]);
+  const [allVideos, setAllVideos] = useState([]); // Store all videos for filtering
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedLanguage, setSelectedLanguage] = useState(null); // null = all, 'Tamil' or 'English'
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState(null);
@@ -93,6 +95,13 @@ const YouTubeScreen = () => {
     }
   }, [liveConfig, pulseAnim]);
 
+  // Apply filters when language or search query changes
+  useEffect(() => {
+    if (allVideos.length > 0) {
+      applyFilters(allVideos, searchQuery, selectedLanguage);
+    }
+  }, [selectedLanguage, searchQuery, allVideos]);
+
   const fetchLocalVideos = async (isRefresh = false) => {
     try {
       if (isRefresh) {
@@ -104,13 +113,77 @@ const YouTubeScreen = () => {
       const sorted = (response.data || []).sort(
         (a, b) => parseInt(b.id, 10) - parseInt(a.id, 10)
       );
-      setVideos(sorted);
+      setAllVideos(sorted);
+      applyFilters(sorted, searchQuery, selectedLanguage);
     } catch (error) {
       console.error('Error fetching Tashkeel videos:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
+  };
+
+  // Helper function to extract language from description, fallback to Language field
+  const getVideoLanguage = (video) => {
+    // First, try to extract from description
+    const description = (video.description || '').toString();
+    
+    // Look for patterns like "Language: Tamil" or "🌐 Language: English"
+    const languagePatterns = [
+      /🌐\s*Language:\s*([^\n\r]+)/i,
+      /Language:\s*([^\n\r]+)/i,
+      /Language\s*:\s*([^\n\r]+)/i,
+    ];
+    
+    for (const pattern of languagePatterns) {
+      const match = description.match(pattern);
+      if (match && match[1]) {
+        return match[1].trim();
+      }
+    }
+    
+    // If not found in description, check Language field
+    if (video.language || video.Language || video.LANGUAGE) {
+      return (video.language || video.Language || video.LANGUAGE).toString().trim();
+    }
+    
+    return '';
+  };
+
+  const applyFilters = (videoList, query, language) => {
+    let filtered = [...videoList];
+
+    // Filter by language
+    if (language) {
+      console.log('Filtering by language:', language);
+      filtered = filtered.filter((video) => {
+        const videoLanguage = getVideoLanguage(video);
+        const filterLanguage = language.toString().trim();
+        const matches = videoLanguage.toLowerCase() === filterLanguage.toLowerCase();
+        
+        return matches;
+      });
+      console.log(`Filtered ${filtered.length} videos for language: ${language}`);
+    }
+
+    // Filter by search query
+    if (query.trim()) {
+      const lowerQuery = query.toLowerCase();
+      filtered = filtered.filter((video) => {
+        const title = (video.title || '').toLowerCase();
+        const lecturer = (video.lecturer || '').toLowerCase();
+        const topic = (video.topic || '').toLowerCase();
+        const description = (video.description || '').toLowerCase();
+        return (
+          title.includes(lowerQuery) ||
+          lecturer.includes(lowerQuery) ||
+          topic.includes(lowerQuery) ||
+          description.includes(lowerQuery)
+        );
+      });
+    }
+
+    setVideos(filtered);
   };
 
   const fetchLiveConfig = async () => {
@@ -449,6 +522,72 @@ const YouTubeScreen = () => {
                   <Ionicons name="search" size={18} color={BRAND_COLORS.textDark} />
                 </TouchableOpacity>
               </View>
+              <View style={styles.languageFilterContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.languageFilterButton,
+                    selectedLanguage === null && styles.languageFilterButtonActive,
+                  ]}
+                  onPress={() => setSelectedLanguage(null)}
+                >
+                  <Text
+                    style={[
+                      styles.languageFilterText,
+                      selectedLanguage === null && styles.languageFilterTextActive,
+                    ]}
+                  >
+                    All
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.languageFilterButton,
+                    selectedLanguage === 'Tamil' && styles.languageFilterButtonActive,
+                  ]}
+                  onPress={() => setSelectedLanguage('Tamil')}
+                >
+                  <Text
+                    style={[
+                      styles.languageFilterText,
+                      selectedLanguage === 'Tamil' && styles.languageFilterTextActive,
+                    ]}
+                  >
+                    Tamil
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.languageFilterButton,
+                    selectedLanguage === 'English' && styles.languageFilterButtonActive,
+                  ]}
+                  onPress={() => setSelectedLanguage('English')}
+                >
+                  <Text
+                    style={[
+                      styles.languageFilterText,
+                      selectedLanguage === 'English' && styles.languageFilterTextActive,
+                    ]}
+                  >
+                    English
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.languageFilterButton,
+                    selectedLanguage === 'Sinhala' && styles.languageFilterButtonActive,
+                  ]}
+                  onPress={() => setSelectedLanguage('Sinhala')}
+                >
+                  <Text
+                    style={[
+                      styles.languageFilterText,
+                      selectedLanguage === 'Sinhala' && styles.languageFilterTextActive,
+                    ]}
+                  >
+                    Sinhala
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
           }
           contentContainerStyle={{ paddingBottom: 40 }}
@@ -559,6 +698,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: BRAND_COLORS.accent,
+  },
+  languageFilterContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  languageFilterButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: BRAND_COLORS.card,
+    borderWidth: 1,
+    borderColor: '#B6E3D4',
+  },
+  languageFilterButtonActive: {
+    backgroundColor: BRAND_COLORS.primary,
+    borderColor: BRAND_COLORS.primary,
+  },
+  languageFilterText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: BRAND_COLORS.textDark,
+  },
+  languageFilterTextActive: {
+    color: '#fff',
   },
   videoItem: {
     flexDirection: 'row',
