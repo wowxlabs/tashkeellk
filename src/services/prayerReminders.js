@@ -4,7 +4,7 @@ import { Platform, AppState } from 'react-native';
 import * as Location from 'expo-location';
 import axios from 'axios';
 import { DateTime } from 'luxon';
-import { getCalculationMethod } from './prayerSettings';
+import { getCalculationMethod, getTimezone } from './prayerSettings';
 
 const PRAYER_NAMES = {
   Fajr: 'Fajr',
@@ -169,14 +169,12 @@ async function getCoordsAndTimeZone() {
       }
     }
 
-    const timeZoneId =
-      Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const timeZoneId = await getTimezone();
 
     return { coords, timeZoneId };
   } catch (error) {
     console.error('Error getting coords/timezone for prayer reminders:', error);
-    const timeZoneId =
-      Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const timeZoneId = await getTimezone().catch(() => 'UTC');
     return { coords: null, timeZoneId };
   }
 }
@@ -198,6 +196,7 @@ export async function getTodayPrayerTimes() {
         lon: coords.longitude,
         date: apiDate,
         method: method || 'ISNA',
+        timeZoneId: timeZoneId,
       },
       headers: { Accept: 'application/json' },
     });
@@ -323,6 +322,7 @@ async function getPrayerTimesForDate(targetDate) {
         lon: coords.longitude,
         date: dateStr,
         method: method || 'ISNA',
+        timeZoneId: timeZoneId,
       },
       headers: { Accept: 'application/json' },
     });

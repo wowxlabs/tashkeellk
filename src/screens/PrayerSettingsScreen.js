@@ -9,6 +9,9 @@ import {
   setCalculationMethod,
   DEFAULT_PRAYER_CALC_METHOD,
   getCalculationMethods,
+  getTimezone,
+  setTimezone,
+  COMMON_TIMEZONES,
 } from '../services/prayerSettings';
 
 const PrayerSettingsScreen = () => {
@@ -20,17 +23,22 @@ const PrayerSettingsScreen = () => {
   const [locationPostcode, setLocationPostcode] = useState('');
   const [refreshingLocation, setRefreshingLocation] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [selectedTimezone, setSelectedTimezone] = useState('UTC');
+  const [showTimezoneDropdown, setShowTimezoneDropdown] = useState(false);
 
   useEffect(() => {
     const load = async () => {
-      const [method, availableMethods, storedLocationLabel, storedCoords] = await Promise.all([
+      const [method, availableMethods, storedLocationLabel, storedCoords, timezone] = await Promise.all([
         getCalculationMethod(),
         getCalculationMethods(),
         AsyncStorage.getItem('USER_LOCATION_LABEL_V2'),
         AsyncStorage.getItem('USER_LOCATION_COORDS'),
+        getTimezone(),
       ]);
       setSelectedMethod(method);
       setMethods(availableMethods);
+      console.log('🕐 Loaded timezone in Prayer Settings:', timezone);
+      setSelectedTimezone(timezone);
       if (storedLocationLabel) {
         setLocationLabel(storedLocationLabel);
       }
@@ -174,6 +182,72 @@ const PrayerSettingsScreen = () => {
           <Text style={styles.sectionLabel}>Current method</Text>
           <Text style={styles.currentMethod}>{selectedLabel}</Text>
         </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Timezone</Text>
+          <TouchableOpacity
+            style={styles.timezoneSelector}
+            onPress={() => setShowTimezoneDropdown(!showTimezoneDropdown)}
+          >
+            <Text style={styles.timezoneDisplay}>
+              {COMMON_TIMEZONES.find(tz => tz.id === selectedTimezone)?.label || selectedTimezone}
+            </Text>
+            <Ionicons
+              name={showTimezoneDropdown ? 'chevron-up' : 'chevron-down'}
+              size={20}
+              color="#0B4733"
+            />
+          </TouchableOpacity>
+          {showTimezoneDropdown && (
+            <ScrollView 
+              style={styles.timezoneDropdown}
+              nestedScrollEnabled={true}
+              showsVerticalScrollIndicator={true}
+            >
+              {COMMON_TIMEZONES.map((tz) => {
+                const isSelected = tz.id === selectedTimezone;
+                return (
+                  <TouchableOpacity
+                    key={tz.id}
+                    style={[styles.timezoneOption, isSelected && styles.timezoneOptionActive]}
+                    onPress={async () => {
+                      console.log('🕐 Timezone selected:', tz.id);
+                      setSelectedTimezone(tz.id);
+                      await setTimezone(tz.id);
+                      console.log('🕐 Timezone saved to storage:', tz.id);
+                      setShowTimezoneDropdown(false);
+                    }}
+                  >
+                    <Text style={[styles.timezoneOptionText, isSelected && styles.timezoneOptionTextActive]}>
+                      {tz.label}
+                    </Text>
+                    {isSelected && (
+                      <Ionicons name="checkmark-circle" size={20} color="#0F8D6B" />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
+          <TouchableOpacity
+            style={styles.deviceTimezoneButton}
+            onPress={async () => {
+              const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+              console.log('🕐 Device timezone selected:', deviceTz);
+              setSelectedTimezone(deviceTz);
+              await setTimezone(deviceTz);
+              console.log('🕐 Device timezone saved to storage:', deviceTz);
+              setShowTimezoneDropdown(false);
+            }}
+          >
+            <Ionicons name="phone-portrait-outline" size={18} color="#0F8D6B" />
+            <Text style={styles.deviceTimezoneButtonText}>Use Device Timezone</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.divider} />
 
         <View style={styles.locationCard}>
           <View style={styles.locationIconWrapper}>
@@ -425,6 +499,70 @@ const styles = StyleSheet.create({
   locationRefreshText: {
     marginLeft: 6,
     fontSize: 13,
+    color: '#0B4733',
+    fontWeight: '600',
+  },
+  timezoneSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
+    borderColor: '#d6e9e1',
+    marginTop: 8,
+  },
+  timezoneDisplay: {
+    flex: 1,
+    fontSize: 15,
+    color: '#0B4733',
+    fontWeight: '500',
+  },
+  timezoneDropdown: {
+    marginTop: 8,
+    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#d6e9e1',
+    maxHeight: 300,
+  },
+  timezoneOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#e0e0e0',
+  },
+  timezoneOptionActive: {
+    backgroundColor: '#e4f6f0',
+  },
+  timezoneOptionText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#0B4733',
+  },
+  timezoneOptionTextActive: {
+    fontWeight: '600',
+  },
+  deviceTimezoneButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#e4f6f0',
+    borderWidth: 1,
+    borderColor: '#0F8D6B',
+  },
+  deviceTimezoneButtonText: {
+    marginLeft: 8,
+    fontSize: 14,
     color: '#0B4733',
     fontWeight: '600',
   },

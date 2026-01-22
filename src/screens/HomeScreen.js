@@ -1,13 +1,13 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Image, ScrollView, TouchableOpacity, Animated, FlatList, Dimensions, Modal } from 'react-native';
 import axios from 'axios';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DateTime } from 'luxon';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import BannerAd from '../components/BannerAd';
-import { getCalculationMethod } from '../services/prayerSettings';
+import { getCalculationMethod, getTimezone } from '../services/prayerSettings';
 
 const friendlyName = (playlist) =>
   playlist ? playlist.charAt(0).toUpperCase() + playlist.slice(1) : 'Next Prayer';
@@ -501,7 +501,7 @@ const HomeScreen = () => {
     data: null,
     error: null,
   });
-  const [timeZoneId] = useState(initialZone);
+  const [timeZoneId, setTimeZoneId] = useState(initialZone);
   const [selectedDate, setSelectedDate] = useState(() =>
     DateTime.now().setZone(initialZone)
   );
@@ -520,6 +520,41 @@ const HomeScreen = () => {
     };
     loadMethod();
   }, []);
+
+  useEffect(() => {
+    const loadTimezone = async () => {
+      const tz = await getTimezone();
+      console.log('🕐 Initial timezone loaded:', tz);
+      setTimeZoneId(tz);
+      setSelectedDate(DateTime.now().setZone(tz));
+    };
+    loadTimezone();
+  }, []);
+
+  // Log when timezone changes
+  useEffect(() => {
+    console.log('🕐 Timezone state changed to:', timeZoneId);
+  }, [timeZoneId]);
+
+  // Reload timezone when screen is focused (e.g., returning from Prayer Settings)
+  useFocusEffect(
+    React.useCallback(() => {
+      const loadTimezone = async () => {
+        const tz = await getTimezone();
+        console.log('🕐 Reloading timezone on focus:', tz);
+        setTimeZoneId((currentTz) => {
+          if (currentTz !== tz) {
+            console.log('🕐 Timezone changed from', currentTz, 'to', tz, '- will reload prayer times');
+            // Show loading state when timezone changes
+            setPrayerState(prev => ({ ...prev, loading: true }));
+          }
+          return tz;
+        });
+        setSelectedDate(DateTime.now().setZone(tz));
+      };
+      loadTimezone();
+    }, [])
+  );
 
   useEffect(() => {
     const loadCoordsAndCompute = async () => {
@@ -558,14 +593,14 @@ const HomeScreen = () => {
         try {
           const savedName = await AsyncStorage.getItem(LOCATION_NAME_STORAGE_KEY);
           if (savedName) {
-            // Ensure timezone is included even for older saved values
-            const nameWithZone = savedName.includes('(')
-              ? savedName
-              : `${savedName} (${timeZoneId})`;
+            // Extract base name (remove timezone if present) and add current timezone
+            const baseName = savedName.includes('(')
+              ? savedName.substring(0, savedName.lastIndexOf('(')).trim()
+              : savedName;
+            const nameWithZone = `${baseName} (${timeZoneId})`;
             setLocationName(nameWithZone);
-            if (nameWithZone !== savedName) {
-              await AsyncStorage.setItem(LOCATION_NAME_STORAGE_KEY, nameWithZone);
-            }
+            // Always update to ensure timezone is current
+            await AsyncStorage.setItem(LOCATION_NAME_STORAGE_KEY, nameWithZone);
           } else {
             // Reverse geocode using Tashkeel's OpenStreetMap-based API
             try {
@@ -632,12 +667,15 @@ const HomeScreen = () => {
         // Fetch prayer times from Tashkeel API using current coords, method, and selected date
         const apiDate = selectedDate.toFormat('yyyy-LL-dd');
 
+        console.log('🕌 Fetching prayer times with timezone:', timeZoneId, 'for date:', apiDate);
+
         const prayerResp = await axios.get('https://api.tashkeel.lk/v1/prayertimes', {
           params: {
             lat: coords.latitude,
             lon: coords.longitude,
             date: apiDate,
             method: calcMethod || 'ISNA',
+            timeZoneId: timeZoneId,
           },
           headers: {
             Accept: 'application/json',
@@ -645,8 +683,15 @@ const HomeScreen = () => {
         });
 
         const times = prayerResp.data?.data?.times || {};
+        console.log('🕌 API returned prayer times:', times);
+        console.log('🕌 Requested timezone:', timeZoneId);
 
-        // Build schedule using API times (local timezone)
+        // Get the location's actual timezone (for conversion if needed)
+        const locationTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+        console.log('🕌 Location timezone:', locationTimezone);
+
+        // Build schedule using API times
+        // Note: API should return times in the requested timezone, but we'll handle conversion if needed
         const labels = [
           { key: 'fajr', name: 'Fajr' },
           { key: 'sunrise', name: 'Sunrise' },
@@ -665,16 +710,38 @@ const HomeScreen = () => {
             const minute = parseInt(minuteStr, 10);
             if (Number.isNaN(hour) || Number.isNaN(minute)) return null;
 
-            const dt = DateTime.fromObject(
-              {
-                year: selectedDate.year,
-                month: selectedDate.month,
-                day: selectedDate.day,
-                hour,
-                minute,
-              },
-              { zone: timeZoneId }
-            );
+            // The API might return times in the location's timezone, not the requested timezone
+            // So we need to: 1) interpret times as location timezone, 2) convert to requested timezone
+            let dt;
+            if (timeZoneId !== locationTimezone) {
+              // API likely returns times in location timezone, so interpret them there first
+              const dtInLocationTz = DateTime.fromObject(
+                {
+                  year: selectedDate.year,
+                  month: selectedDate.month,
+                  day: selectedDate.day,
+                  hour,
+                  minute,
+                },
+                { zone: locationTimezone }
+              );
+              // Then convert to requested timezone
+              dt = dtInLocationTz.setZone(timeZoneId);
+              console.log(`🔄 ${name}: ${t} (${locationTimezone}) -> ${dt.toFormat('h:mm a')} (${timeZoneId})`);
+            } else {
+              // Same timezone, no conversion needed
+              dt = DateTime.fromObject(
+                {
+                  year: selectedDate.year,
+                  month: selectedDate.month,
+                  day: selectedDate.day,
+                  hour,
+                  minute,
+                },
+                { zone: timeZoneId }
+              );
+              console.log(`🕌 ${name}: ${t} -> ${dt.toFormat('h:mm a')} (${timeZoneId})`);
+            }
 
             return {
               name,
@@ -759,7 +826,8 @@ const HomeScreen = () => {
       .catch(() => setLatestBayans([]));
   }, []);
 
-  useEffect(() => {
+  // Fetch announcements function
+  const fetchAnnouncements = useCallback(() => {
     setAnnouncementsLoading(true);
     axios
       .get('https://api.tashkeel.lk/announcements.json')
@@ -781,6 +849,18 @@ const HomeScreen = () => {
         setAnnouncementsLoading(false);
       });
   }, []);
+
+  // Fetch announcements on mount
+  useEffect(() => {
+    fetchAnnouncements();
+  }, [fetchAnnouncements]);
+
+  // Refresh announcements when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      fetchAnnouncements();
+    }, [fetchAnnouncements])
+  );
 
   useEffect(() => {
     const interval = setInterval(() => {
