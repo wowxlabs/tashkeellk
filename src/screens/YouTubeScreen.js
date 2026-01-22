@@ -479,7 +479,8 @@ const styles = StyleSheet.create({
   },
   sectionIntro: {
     color: '#0B4733',
-    marginBottom: 12,
+    marginTop: 16,
+    marginBottom: 20,
     lineHeight: 20,
     fontWeight: '600',
   },
@@ -491,7 +492,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderRadius: 16,
-    marginBottom: 12,
+    marginBottom: 20,
     borderWidth: 1,
     borderColor: '#b6e3d4',
     shadowColor: '#0f4d3a',
