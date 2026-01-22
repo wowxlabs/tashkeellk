@@ -257,9 +257,11 @@ async function scheduleSinglePrayerNotification(prayerName, prayerDateTime, minu
 
     const identifier = `prayer_${prayerName}_${prayerDateTime.toFormat('yyyy-LL-dd')}`;
 
+    // For iOS: use filename without extension (e.g., "sound1" not "sound1.wav" or "sound1.caf")
+    // For Android: sound is handled by the notification channel
     const soundUri = soundFilename
       ? Platform.OS === 'ios'
-        ? soundFilename.replace('.wav', '.caf')
+        ? soundFilename.replace(/\.\w+$/, '') // Remove extension for iOS
         : soundFilename
       : 'default';
 
@@ -278,9 +280,9 @@ async function scheduleSinglePrayerNotification(prayerName, prayerDateTime, minu
       }),
     };
 
-    // Set sound based on platform (like masjid app)
+    // Set sound based on platform
     if (Platform.OS === 'ios') {
-      notificationContent.sound = soundUri; // iOS: Use filename with extension
+      notificationContent.sound = soundUri; // iOS: Use filename without extension
     }
     // Android: Do NOT set sound in content – let the channel decide
 
