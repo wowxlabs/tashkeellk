@@ -82,7 +82,7 @@ const AnnouncementsCard = ({ announcements, loading }) => {
   return (
     <View style={styles.announcementsCard}>
       <View style={styles.announcementsHeader}>
-        <Text style={styles.announcementsTitle}>Announcements</Text>
+        <Text style={styles.announcementsTitle}>Reminders</Text>
         <Ionicons name="megaphone" size={18} color="#d0f0e4" />
       </View>
       <View style={styles.announcementsSliderContainer}>
@@ -190,15 +190,37 @@ const AnnouncementsCard = ({ announcements, loading }) => {
             </View>
             <ScrollView style={styles.announcementModalContent}>
               {selectedAnnouncement.image && (
-                <Image
-                  source={{
-                    uri: selectedAnnouncement.image.startsWith('http')
-                      ? selectedAnnouncement.image
-                      : `https://api.tashkeel.lk${selectedAnnouncement.image.startsWith('/') ? '' : '/'}${selectedAnnouncement.image}`
+                <ScrollView
+                  style={[styles.announcementModalImageContainer, {
+                    width: Dimensions.get('window').width - 32,
+                    height: Dimensions.get('window').height * 0.4,
+                  }]}
+                  contentContainerStyle={{
+                    width: Dimensions.get('window').width - 32,
+                    height: Dimensions.get('window').height * 0.4,
+                    alignItems: 'center',
+                    justifyContent: 'center',
                   }}
-                  style={styles.announcementModalImage}
-                  resizeMode="cover"
-                />
+                  maximumZoomScale={5}
+                  minimumZoomScale={1}
+                  showsHorizontalScrollIndicator={false}
+                  showsVerticalScrollIndicator={false}
+                  bouncesZoom={true}
+                  scrollEventThrottle={16}
+                >
+                  <Image
+                    source={{
+                      uri: selectedAnnouncement.image.startsWith('http')
+                        ? selectedAnnouncement.image
+                        : `https://api.tashkeel.lk${selectedAnnouncement.image.startsWith('/') ? '' : '/'}${selectedAnnouncement.image}`
+                    }}
+                    style={{
+                      width: Dimensions.get('window').width - 32,
+                      height: Dimensions.get('window').height * 0.4,
+                    }}
+                    resizeMode="contain"
+                  />
+                </ScrollView>
               )}
               {selectedAnnouncement.title && (
                 <Text style={styles.announcementModalTitle}>{selectedAnnouncement.title}</Text>
@@ -1299,7 +1321,7 @@ const styles = StyleSheet.create({
   },
   announcementModalContainer: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#ECF7F3',
   },
   announcementModalHeader: {
     flexDirection: 'row',
@@ -1308,8 +1330,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    backgroundColor: '#ffffff',
+    borderBottomColor: '#C6EDDF',
+    backgroundColor: '#ECF7F3',
   },
   announcementModalCloseButton: {
     width: 40,
@@ -1326,11 +1348,23 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
-  announcementModalImage: {
-    width: '100%',
-    height: 250,
-    borderRadius: 12,
+  announcementModalImageContainer: {
+    width: Dimensions.get('window').width - 32,
+    height: Dimensions.get('window').height * 0.4,
     marginBottom: 16,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  announcementModalImageContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: Dimensions.get('window').width - 32,
+    height: Dimensions.get('window').height * 0.4,
+  },
+  announcementModalImage: {
+    width: Dimensions.get('window').width - 32,
+    height: Dimensions.get('window').height * 0.4,
   },
   announcementModalTitle: {
     fontSize: 22,

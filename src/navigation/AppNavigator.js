@@ -15,7 +15,10 @@ import QiblaScreen from '../screens/QiblaScreen';
 import PrayerRemindersScreen from '../screens/PrayerRemindersScreen';
 import PrayerSettingsScreen from '../screens/PrayerSettingsScreen';
 import OnboardingLocationScreen from '../screens/OnboardingLocationScreen';
+import NewsScreen from '../screens/NewsScreen';
+import NewsDetailScreen from '../screens/NewsDetailScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 const Drawer = createDrawerNavigator();
 
 const brandColors = {
@@ -35,6 +38,7 @@ export default function AppNavigator() {
   const navigationRef = useRef();
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [newsEnabled, setNewsEnabled] = useState(false);
 
   useEffect(() => {
     const checkOnboarding = async () => {
@@ -49,6 +53,26 @@ export default function AppNavigator() {
       }
     };
     checkOnboarding();
+  }, []);
+
+  useEffect(() => {
+    const checkNewsEnabled = async () => {
+      try {
+        const response = await axios.get('https://api.tashkeel.lk/v1/news', {
+          headers: { Accept: 'application/json' },
+        });
+        // Check for mobileEnabled at root level or in settings object
+        const mobileEnabled = 
+          response.data?.mobileEnabled === true || 
+          response.data?.settings?.mobileEnabled === true ||
+          false;
+        setNewsEnabled(mobileEnabled);
+      } catch (error) {
+        console.error('Error checking news settings:', error);
+        setNewsEnabled(false);
+      }
+    };
+    checkNewsEnabled();
   }, []);
 
   useEffect(() => {
@@ -198,8 +222,12 @@ export default function AppNavigator() {
               >
                 <View style={styles.drawerList}>
                   {props.state.routes.map((route, index) => {
-                    // Skip Prayer Settings from drawer menu
-                    if (route.name === 'Prayer Settings') {
+                    // Skip hidden screens from drawer menu
+                    if (route.name === 'Prayer Settings' || route.name === 'News Detail') {
+                      return null;
+                    }
+                    // Hide News if mobileEnabled is false
+                    if (route.name === 'News' && !newsEnabled) {
                       return null;
                     }
                     
@@ -286,6 +314,13 @@ export default function AppNavigator() {
             }}
           />
           <Drawer.Screen
+            name="News"
+            component={NewsScreen}
+            options={{
+              drawerIcon: ({ color, size }) => <Ionicons name="newspaper-outline" size={size} color={color} />,
+            }}
+          />
+          <Drawer.Screen
             name="Qibla Finder"
             component={QiblaScreen}
             options={{
@@ -298,6 +333,37 @@ export default function AppNavigator() {
             options={{
               drawerIcon: ({ color, size }) => <Ionicons name="alarm-outline" size={size} color={color} />,
             }}
+          />
+          <Drawer.Screen
+            name="News Detail"
+            component={NewsDetailScreen}
+            options={({ navigation }) => ({
+              title: 'News Detail',
+              headerLeftContainerStyle: {
+                paddingLeft: Platform.OS === 'ios' ? 8 : 16,
+              },
+              headerLeft: () => (
+                <TouchableOpacity
+                  onPress={() => {
+                    navigation.navigate('News');
+                  }}
+                  style={{
+                    padding: 10,
+                    minWidth: 44,
+                    minHeight: 44,
+                    justifyContent: 'center',
+                    alignItems: 'flex-start',
+                  }}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons name="arrow-back" size={24} color={brandColors.textOnPrimary} />
+                </TouchableOpacity>
+              ),
+              // Keep the screen in the navigator but hide it from the drawer list
+              drawerItemStyle: { height: 0 },
+              drawerLabel: () => null,
+              drawerIcon: () => null,
+            })}
           />
           <Drawer.Screen
             name="Prayer Settings"
