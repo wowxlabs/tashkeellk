@@ -117,47 +117,73 @@ export default function QiblaScreen() {
     }, [])
   );
 
-  // Request location permission and get location
-  useEffect(() => {
-    const requestPermissions = async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          setError('Location permission is required to find Qibla direction.');
+  // Refresh location every time the screen opens (focused)
+  useFocusEffect(
+    React.useCallback(() => {
+      let cancelled = false;
+
+      const refreshLocation = async () => {
+        try {
+          setLoading(true);
+          setError(null);
+
+          const existingPerm = await Location.getForegroundPermissionsAsync();
+          let status = existingPerm?.status;
+          if (status !== 'granted') {
+            const requested = await Location.requestForegroundPermissionsAsync();
+            status = requested?.status;
+          }
+
+          if (status !== 'granted') {
+            if (!cancelled) {
+              setPermissionGranted(false);
+              setError('Location permission is required to find Qibla direction.');
+              setLoading(false);
+            }
+            return;
+          }
+
+          if (!cancelled) {
+            setPermissionGranted(true);
+          }
+
+          const currentLocation = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.BestForNavigation,
+          });
+
+          if (cancelled) return;
+
+          setLocation(currentLocation);
+
+          const bearing = calculateQiblaBearing(
+            currentLocation.coords.latitude,
+            currentLocation.coords.longitude
+          );
+          setQiblaBearing(bearing);
+
+          const dist = calculateDistance(
+            currentLocation.coords.latitude,
+            currentLocation.coords.longitude
+          );
+          setDistance(dist);
+
           setLoading(false);
-          return;
+        } catch (err) {
+          console.error('Error getting location:', err);
+          if (!cancelled) {
+            setError('Failed to get your location. Please ensure location services are enabled.');
+            setLoading(false);
+          }
         }
-        setPermissionGranted(true);
+      };
 
-        // Get current location
-        const currentLocation = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.BestForNavigation,
-        });
-        setLocation(currentLocation);
+      refreshLocation();
 
-        // Calculate Qibla bearing and distance
-        const bearing = calculateQiblaBearing(
-          currentLocation.coords.latitude,
-          currentLocation.coords.longitude
-        );
-        setQiblaBearing(bearing);
-
-        const dist = calculateDistance(
-          currentLocation.coords.latitude,
-          currentLocation.coords.longitude
-        );
-        setDistance(dist);
-
-        setLoading(false);
-      } catch (err) {
-        console.error('Error getting location:', err);
-        setError('Failed to get your location. Please ensure location services are enabled.');
-        setLoading(false);
-      }
-    };
-
-    requestPermissions();
-  }, []);
+      return () => {
+        cancelled = true;
+      };
+    }, [])
+  );
 
   // Subscribe to compass heading
   useEffect(() => {

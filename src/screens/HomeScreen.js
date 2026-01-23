@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Image, ScrollView, TouchableOpacity, Animated, FlatList, Dimensions, Modal, Platform } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Image, ScrollView, TouchableOpacity, Animated, FlatList, Dimensions, Modal, Platform, Share } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import axios from 'axios';
 import * as Location from 'expo-location';
@@ -80,6 +80,42 @@ const AnnouncementsCard = ({ announcements, loading }) => {
   if (!announcements || announcements.length === 0) {
     return null;
   }
+
+  const handleShareReminder = async (announcement) => {
+    try {
+      if (!announcement) return;
+
+      const imageUrl = announcement.image
+        ? (announcement.image.startsWith('http')
+            ? announcement.image
+            : `https://api.tashkeel.lk${announcement.image.startsWith('/') ? '' : '/'}${announcement.image}`)
+        : null;
+
+      const title = announcement.title || 'Tashkeel Reminders';
+      
+      // Build message with proper spacing
+      let message = '';
+      if (announcement.title) {
+        const titleText = announcement.title.trim();
+        const separator = '='.repeat(titleText.length);
+        message += titleText + '\n' + separator + '\n';
+      }
+      if (announcement.message) {
+        message += announcement.message.trim() + '\n\n';
+      }
+      if (announcement.body) {
+        message += announcement.body.trim() + '\n\n';
+      }
+      message += 'From: Tashkeel App';
+
+      await Share.share({
+        title,
+        message,
+      });
+    } catch (e) {
+      console.log('Share failed:', e);
+    }
+  };
 
   return (
     <View style={styles.announcementsCard}>
@@ -187,7 +223,7 @@ const AnnouncementsCard = ({ announcements, loading }) => {
               >
                 <Ionicons name="close" size={24} color="#0B4733" />
               </TouchableOpacity>
-              <Text style={styles.announcementModalHeaderTitle}>Announcement</Text>
+              <Text style={styles.announcementModalHeaderTitle}>Reminders</Text>
               <View style={styles.announcementModalHeaderSpacer} />
             </View>
             <ScrollView style={styles.announcementModalContent}>
@@ -224,6 +260,14 @@ const AnnouncementsCard = ({ announcements, loading }) => {
                   />
                 </ScrollView>
               )}
+              <TouchableOpacity
+                style={styles.announcementModalShareButton}
+                onPress={() => handleShareReminder(selectedAnnouncement)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="share-social-outline" size={18} color="#0B4733" />
+                <Text style={styles.announcementModalShareText}>Share This Reminder</Text>
+              </TouchableOpacity>
               {selectedAnnouncement.title && (
                 <Text style={styles.announcementModalTitle}>{selectedAnnouncement.title}</Text>
               )}
@@ -1373,6 +1417,22 @@ const styles = StyleSheet.create({
   announcementModalImage: {
     width: Dimensions.get('window').width - 32,
     height: Dimensions.get('window').height * 0.4,
+  },
+  announcementModalShareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#F5B400',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    marginBottom: 14,
+  },
+  announcementModalShareText: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0B4733',
   },
   announcementModalTitle: {
     fontSize: 22,
