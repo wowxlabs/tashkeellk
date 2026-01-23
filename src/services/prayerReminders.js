@@ -258,11 +258,8 @@ async function scheduleSinglePrayerNotification(prayerName, prayerDateTime, minu
 
     // For iOS: use filename without extension (e.g., "sound1" not "sound1.wav" or "sound1.caf")
     // For Android: sound is handled by the notification channel
-    const soundUri = soundFilename
-      ? Platform.OS === 'ios'
-        ? soundFilename.replace(/\.\w+$/, '') // Remove extension for iOS
-        : soundFilename
-      : 'default';
+    // For iOS: use the filename with extension (e.g., "sound1.wav"), same as Masjid Companion app
+    const soundUri = soundFilename || undefined;
 
     const notificationContent = {
       title: `${prayerName} Prayer Reminder`,
@@ -281,7 +278,9 @@ async function scheduleSinglePrayerNotification(prayerName, prayerDateTime, minu
 
     // Set sound based on platform
     if (Platform.OS === 'ios') {
-      notificationContent.sound = soundUri; // iOS: Use filename without extension
+      // iOS: Use the filename with extension (e.g., "sound1.wav")
+      // This matches the working configuration in Masjid Companion
+      notificationContent.sound = soundUri || true;
     }
     // Android: Do NOT set sound in content – let the channel decide
 
