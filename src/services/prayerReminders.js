@@ -256,9 +256,12 @@ async function scheduleSinglePrayerNotification(prayerName, prayerDateTime, minu
 
     const identifier = `prayer_${prayerName}_${prayerDateTime.toFormat('yyyy-LL-dd')}`;
 
-    // For iOS: use filename without extension (e.g., "sound1" not "sound1.wav" or "sound1.caf")
+    console.log(`📅 Scheduling ${prayerName} reminder with sound: ${soundFilename || 'default'}`);
+
+    // For iOS: use filename WITH extension (e.g., "sound1.wav")
+    // Since sound files are in iOS bundle (ios/Tashkeel/sound1.wav), iOS can reference them by full filename
+    // This matches Masjid Companion which also has sounds in iOS bundle and uses filename with extension
     // For Android: sound is handled by the notification channel
-    // For iOS: use the filename with extension (e.g., "sound1.wav"), same as Masjid Companion app
     const soundUri = soundFilename || undefined;
 
     const notificationContent = {
@@ -278,9 +281,12 @@ async function scheduleSinglePrayerNotification(prayerName, prayerDateTime, minu
 
     // Set sound based on platform
     if (Platform.OS === 'ios') {
-      // iOS: Use the filename with extension (e.g., "sound1.wav")
-      // This matches the working configuration in Masjid Companion
+      // iOS: Try using full filename with extension (like Masjid Companion)
+      // Since sound files are in iOS bundle (ios/Tashkeel/sound1.wav), try full filename
       notificationContent.sound = soundUri || true;
+      console.log(`🔊 iOS: Setting sound to: ${soundUri || 'default'} (full filename with extension, matching Masjid Companion)`);
+      console.log(`🔊 iOS: Sound file in iOS bundle: ios/Tashkeel/${soundFilename || 'none'}`);
+      console.log(`🔊 iOS: Full notification content sound field: ${JSON.stringify(notificationContent.sound)}`);
     }
     // Android: Do NOT set sound in content – let the channel decide
 
@@ -424,6 +430,8 @@ export async function schedulePrayerReminders() {
     const toggles = await getPrayerReminderToggles();
     const minutesBefore = await getPrayerReminderMinutesBefore();
     const soundFilename = await getAdhanSoundFilename();
+    
+    console.log(`🔊 Prayer reminders: Using sound filename: ${soundFilename || 'default'} (platform: ${Platform.OS})`);
     
     // Ensure channel is set up with the correct sound (Android only)
     await ensurePrayerReminderChannel(soundFilename);

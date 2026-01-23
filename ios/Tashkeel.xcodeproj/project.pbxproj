@@ -22,11 +22,11 @@
 		13B07F961A680F5B00A75B9A /* Tashkeel.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tashkeel.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = Tashkeel/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = Tashkeel/Info.plist; sourceTree = "<group>"; };
-		1BBE9CE274E8484E80840715 /* sound1.wav */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = sound1.wav; path = Tashkeel/sound1.wav; sourceTree = "<group>"; };
+		1BBE9CE274E8484E80840715 /* sound1.wav */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = sound1.wav; path = Tashkeel/sound1.wav; sourceTree = "<group>"; };
 		3A86698FE87F6E396DC444D7 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Tashkeel/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		3D9025EC2315EF9CAF054417 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = Tashkeel/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		3D9025EC2315EF9CAF054417 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = Tashkeel/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		45714E7E2DE794FEF95CA2E2 /* Pods-Tashkeel.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Tashkeel.debug.xcconfig"; path = "Target Support Files/Pods-Tashkeel/Pods-Tashkeel.debug.xcconfig"; sourceTree = "<group>"; };
-		5F1564F13EC240A5A3CBB8C1 /* sound2.wav */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = sound2.wav; path = Tashkeel/sound2.wav; sourceTree = "<group>"; };
+		5F1564F13EC240A5A3CBB8C1 /* sound2.wav */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = sound2.wav; path = Tashkeel/sound2.wav; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = Tashkeel/SplashScreen.storyboard; sourceTree = "<group>"; };
 		AA28B76FD0D7EC29CAAD5D16 /* Pods-Tashkeel.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Tashkeel.release.xcconfig"; path = "Target Support Files/Pods-Tashkeel/Pods-Tashkeel.release.xcconfig"; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
@@ -117,7 +117,6 @@
 				45714E7E2DE794FEF95CA2E2 /* Pods-Tashkeel.debug.xcconfig */,
 				AA28B76FD0D7EC29CAAD5D16 /* Pods-Tashkeel.release.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -397,6 +396,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Tashkeel/Tashkeel.entitlements;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6PUQUF5Y5V;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",

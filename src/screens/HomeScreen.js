@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Image, ScrollView, TouchableOpacity, Animated, FlatList, Dimensions, Modal } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Image, ScrollView, TouchableOpacity, Animated, FlatList, Dimensions, Modal, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import axios from 'axios';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -25,6 +26,7 @@ const formatCountdown = (diff) => {
 };
 
 const AnnouncementsCard = ({ announcements, loading }) => {
+  const insets = useSafeAreaInsets();
   const screenWidth = Dimensions.get('window').width;
   const cardWidth = screenWidth - 32; // Account for card margin (16*2)
   const cardPadding = 32; // Card padding (16*2)
@@ -178,7 +180,7 @@ const AnnouncementsCard = ({ announcements, loading }) => {
       >
         {selectedAnnouncement && (
           <View style={styles.announcementModalContainer}>
-            <View style={styles.announcementModalHeader}>
+            <View style={[styles.announcementModalHeader, { paddingTop: Platform.OS === 'ios' ? insets.top + 12 : 12 }]}>
               <TouchableOpacity
                 style={styles.announcementModalCloseButton}
                 onPress={() => setSelectedAnnouncement(null)}
@@ -186,7 +188,7 @@ const AnnouncementsCard = ({ announcements, loading }) => {
                 <Ionicons name="close" size={24} color="#0B4733" />
               </TouchableOpacity>
               <Text style={styles.announcementModalHeaderTitle}>Announcement</Text>
-              <View style={{ width: 40 }} />
+              <View style={styles.announcementModalHeaderSpacer} />
             </View>
             <ScrollView style={styles.announcementModalContent}>
               {selectedAnnouncement.image && (
@@ -1338,11 +1340,17 @@ const styles = StyleSheet.create({
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 20,
   },
   announcementModalHeaderTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#0B4733',
+    flex: 1,
+    textAlign: 'center',
+  },
+  announcementModalHeaderSpacer: {
+    width: 40,
   },
   announcementModalContent: {
     flex: 1,

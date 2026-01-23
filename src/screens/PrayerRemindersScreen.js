@@ -194,11 +194,10 @@ const PrayerRemindersScreen = () => {
       const selectedSound = soundOptions.find(s => s.id === adhanSoundId);
       
       // Prepare sound URI (same pattern as prayer reminders)
-      const soundUri = soundFilename
-        ? Platform.OS === 'ios'
-          ? soundFilename.replace('.wav', '.caf')
-          : soundFilename
-        : 'default';
+      // For iOS: use filename WITH extension (e.g., "sound1.wav")
+      // Since sound files are in iOS bundle, iOS can reference them by full filename
+      // This matches Masjid Companion which also uses filename with extension
+      const soundUri = soundFilename || undefined;
       
       console.log('🔊 Test notification sound config:', {
         soundFilename,
@@ -245,9 +244,23 @@ const PrayerRemindersScreen = () => {
         }),
       };
 
-      // Set sound based on platform (like masjid app)
+      // Set sound based on platform
       if (Platform.OS === 'ios') {
-        notificationContent.sound = soundUri; // iOS: Use filename with extension
+        // iOS: Try using full filename with extension (like Masjid Companion)
+        // Since sound files are in iOS bundle (ios/Tashkeel/sound1.wav), try full filename
+        // If that doesn't work, iOS will fall back to default
+        notificationContent.sound = soundUri || true;
+        
+        console.log(`🔊 iOS TEST NOTIFICATION SOUND DEBUG:`);
+        console.log(`   - Original filename from storage: ${soundFilename || 'none'}`);
+        console.log(`   - Sound URI (full filename): ${soundUri || 'none'}`);
+        console.log(`   - Final notificationContent.sound: ${JSON.stringify(notificationContent.sound)}`);
+        console.log(`   - Sound registered in app.json: ./assets/sounds/${soundFilename || 'none'}`);
+        console.log(`   - Sound file in iOS bundle: ios/Tashkeel/${soundFilename || 'none'}`);
+        console.log(`   - Trying full filename with extension (matching Masjid Companion approach)`);
+        
+        // Verify notification content structure
+        console.log(`   - Full notification content:`, JSON.stringify(notificationContent, null, 2));
       }
       // Android: Do NOT set sound in content – let the channel decide
 
