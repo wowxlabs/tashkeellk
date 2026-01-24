@@ -8,8 +8,10 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
 import axios from 'axios';
@@ -177,6 +179,7 @@ const createHTMLContent = (htmlContent) => {
 };
 
 const NewsDetailScreen = () => {
+  const insets = useSafeAreaInsets();
   const route = useRoute();
   const navigation = useNavigation();
   const { newsId } = route.params || {};
@@ -310,7 +313,10 @@ const NewsDetailScreen = () => {
     <View style={styles.container}>
       <ScrollView 
         style={styles.scrollView} 
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: 16 + (Platform.OS === 'android' ? insets.bottom : 0) }
+        ]}
         nestedScrollEnabled={true}
         showsVerticalScrollIndicator={true}
       >

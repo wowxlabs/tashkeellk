@@ -9,13 +9,16 @@ import {
   ActivityIndicator,
   RefreshControl,
   TextInput,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import BannerAd from '../components/BannerAd';
 
 const NewsScreen = () => {
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const [news, setNews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -262,7 +265,10 @@ const NewsScreen = () => {
         data={news}
         renderItem={renderNewsItem}
         keyExtractor={(item, index) => `news-${item.id || item._id || item.newsId || item.news_id || index}`}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: (styles.listContent?.paddingBottom || 0) + (Platform.OS === 'android' ? insets.bottom : 0) }
+        ]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }

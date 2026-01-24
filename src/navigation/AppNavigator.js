@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
+import * as NavigationBar from 'expo-navigation-bar';
 import RadioScreen from '../screens/RadioScreen';
 import YouTubeScreen from '../screens/YouTubeScreen';
 import HomeScreen from '../screens/HomeScreen';
@@ -78,6 +79,10 @@ export default function AppNavigator() {
   useEffect(() => {
     if (Platform.OS === 'android') {
       SystemUI.setBackgroundColorAsync(brandColors.primary);
+      // Set navigation bar color to match the app theme
+      NavigationBar.setBackgroundColorAsync(brandColors.background);
+      // Set navigation bar buttons to dark color for better visibility on light background
+      NavigationBar.setButtonStyleAsync('dark');
     } else if (Platform.OS === 'ios') {
       // Set status bar background color for iOS
       SystemUI.setBackgroundColorAsync(brandColors.primary);
@@ -214,7 +219,7 @@ export default function AppNavigator() {
                 contentContainerStyle={{
                   paddingLeft: 0,
                   paddingRight: 0,
-                  paddingBottom: 100,
+                  paddingBottom: 100 + (Platform.OS === 'android' ? insets.bottom : 0),
                   paddingTop: Platform.OS === 'ios' ? insets.top + 110 : insets.top + 140,
                   paddingHorizontal: 0,
                 }}
@@ -280,7 +285,7 @@ export default function AppNavigator() {
                   })}
                 </View>
               </DrawerContentScrollView>
-              <View style={[styles.drawerFooter, { position: 'absolute', bottom: 0, left: 0, right: 0, paddingBottom: Math.min(insets.bottom || 4, 8) }]}>
+              <View style={[styles.drawerFooter, { position: 'absolute', bottom: 0, left: 0, right: 0, paddingBottom: Platform.OS === 'android' ? insets.bottom : Math.min(insets.bottom || 4, 8) }]}>
                 <Text style={styles.footerText}>Version 1.0.3</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 4 }}>
                   <Text style={styles.footerSubText}>© {new Date().getFullYear()} </Text>

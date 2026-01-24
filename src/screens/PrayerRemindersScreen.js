@@ -28,6 +28,7 @@ import {
 import * as Notifications from 'expo-notifications';
 import { logPrayerReminderToggle, logAdhanSoundChange } from '../services/analytics';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const BRAND_COLORS = {
   primary: '#0F8D6B',
@@ -49,6 +50,7 @@ const SOUND_FILE_MAP = {
 };
 
 const PrayerRemindersScreen = () => {
+  const insets = useSafeAreaInsets();
   const [toggles, setToggles] = useState({
     Fajr: true,
     Dhuhr: true,
@@ -297,7 +299,13 @@ const PrayerRemindersScreen = () => {
   const soundOptions = getAdhanSoundOptions();
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView 
+      style={styles.container} 
+      contentContainerStyle={[
+        styles.content,
+        { paddingBottom: (styles.content?.paddingBottom || 32) + (Platform.OS === 'android' ? insets.bottom : 0) }
+      ]}
+    >
       {/* Prayer Time Settings Shortcut */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Prayer Time Settings</Text>

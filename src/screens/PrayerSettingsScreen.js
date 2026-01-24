@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
@@ -15,6 +16,7 @@ import {
 } from '../services/prayerSettings';
 
 const PrayerSettingsScreen = () => {
+  const insets = useSafeAreaInsets();
   const [selectedMethod, setSelectedMethod] = useState(DEFAULT_PRAYER_CALC_METHOD);
   const [methods, setMethods] = useState([]);
   const [loadingMethods, setLoadingMethods] = useState(true);
@@ -170,7 +172,10 @@ const PrayerSettingsScreen = () => {
     methods.find((m) => m.id === selectedMethod)?.label || '';
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }}>
+    <ScrollView 
+      style={styles.container} 
+      contentContainerStyle={{ padding: 16, paddingBottom: 16 + (Platform.OS === 'android' ? insets.bottom : 0) }}
+    >
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Prayer Time Calculation</Text>
         <Text style={styles.cardSubtitle}>

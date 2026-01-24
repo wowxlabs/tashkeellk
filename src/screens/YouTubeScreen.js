@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, FlatList, Image, TouchableOpacity, ActivityIndicator, TextInput, StyleSheet, ScrollView, Share, Linking, Modal, Dimensions, Animated, Easing, RefreshControl } from 'react-native';
+import { View, Text, FlatList, Image, TouchableOpacity, ActivityIndicator, TextInput, StyleSheet, ScrollView, Share, Linking, Modal, Dimensions, Animated, Easing, RefreshControl, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
@@ -22,6 +23,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const VIDEO_PLAYER_HEIGHT = Math.min(SCREEN_HEIGHT * 0.4, 350); // 40% of screen height or max 350px
 
 const YouTubeScreen = () => {
+  const insets = useSafeAreaInsets();
   const [videos, setVideos] = useState([]);
   const [allVideos, setAllVideos] = useState([]); // Store all videos for filtering
   const [searchQuery, setSearchQuery] = useState('');
@@ -269,7 +271,10 @@ const YouTubeScreen = () => {
     const videoId = extractVideoId(selectedVideo.videoUrl);
     return (
       <View style={styles.container}>
-        <ScrollView style={styles.videoDetailContainer} contentContainerStyle={{ paddingBottom: 24 }}>
+        <ScrollView 
+          style={styles.videoDetailContainer} 
+          contentContainerStyle={{ paddingBottom: 24 + (Platform.OS === 'android' ? insets.bottom : 0) }}
+        >
           <View style={styles.videoHeader}>
             <TouchableOpacity
               style={styles.backButton}
@@ -590,7 +595,7 @@ const YouTubeScreen = () => {
               </View>
             </View>
           }
-          contentContainerStyle={{ paddingBottom: 40 }}
+          contentContainerStyle={{ paddingBottom: 40 + (Platform.OS === 'android' ? insets.bottom : 0) }}
         />
     </View>
   );

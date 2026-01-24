@@ -8,7 +8,9 @@ import {
   Animated,
   Easing,
   ScrollView,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
@@ -77,6 +79,7 @@ import { logQiblaOpen } from '../services/analytics';
 import BannerAd from '../components/BannerAd';
 
 export default function QiblaScreen() {
+  const insets = useSafeAreaInsets();
   const [location, setLocation] = useState(null);
   const [heading, setHeading] = useState(0);
   const [qiblaBearing, setQiblaBearing] = useState(null);
@@ -403,7 +406,10 @@ export default function QiblaScreen() {
   const alignmentInfo = getAlignmentInfo();
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
+    <ScrollView 
+      style={styles.container} 
+      contentContainerStyle={{ paddingBottom: 32 + (Platform.OS === 'android' ? insets.bottom : 0) }}
+    >
       {/* Verification Info Card */}
       <View style={styles.verificationInfoSection}>
         <Ionicons name="checkmark-circle" size={20} color={BRAND_COLORS.textDark} />

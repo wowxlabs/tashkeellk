@@ -236,7 +236,8 @@
 //export default RadioScreen;
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, TouchableOpacity, Text, StyleSheet, Animated, Easing, ImageBackground, ScrollView, AppState, ActivityIndicator } from 'react-native';
+import { View, TouchableOpacity, Text, StyleSheet, Animated, Easing, ImageBackground, ScrollView, AppState, ActivityIndicator, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -344,6 +345,7 @@ const MarqueeText = ({ text, style }) => {
 };
 
 const RadioScreen = () => {
+  const insets = useSafeAreaInsets();
   const [sound, setSound] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [nowPlaying, setNowPlaying] = useState(null);
@@ -574,33 +576,50 @@ const RadioScreen = () => {
     return `${formatTime(startTs)} - ${formatTime(end)}`;
   };
 
-  const scheduleItems = [
-    nextTrack
-      ? {
-          id: `next-${nextTrack?.song?.id ?? nextTrack?.cued_at}`,
-          title: nextTrack?.song?.title ?? 'Upcoming Program',
-          timeRange: formatTimeRange(nextTrack?.played_at, nextTrack?.duration),
-          day: formatDateLabel(nextTrack?.played_at),
-          playlist: nextTrack?.song?.album || nextTrack?.playlist || 'On Air Soon',
-          status: 'upcoming',
-        }
-      : null,
-    ...songHistory.slice(0, 2).map((item) => ({
-      id: item.sh_id,
-      title: item.song?.title ?? 'Recent Program',
-      timeRange: formatTimeRange(item.played_at, item.duration),
-      day: formatDateLabel(item.played_at),
-      playlist: item.song?.album || item.playlist || 'Earlier',
-      status: 'recent',
-    })),
-  ].filter(Boolean);
-
   const formatDuration = (seconds) => {
     if (!seconds) return '00:00';
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
+
+  // Check if item start time hasn't passed (for NEXT badge)
+  const currentTime = Math.floor(Date.now() / 1000);
+  const isItemNotStarted = (item) => {
+    if (!item?.played_at) return false;
+    return item.played_at > currentTime;
+  };
+
+  // Build schedule items from API data only
+  const scheduleItems = [];
+  
+  // Add nextTrack from API
+  if (nextTrack) {
+    scheduleItems.push({
+      id: `next-${nextTrack?.song?.id ?? nextTrack?.cued_at}`,
+      title: nextTrack?.song?.title ?? 'Upcoming Program',
+      timeRange: formatTimeRange(nextTrack?.played_at, nextTrack?.duration),
+      day: formatDateLabel(nextTrack?.played_at),
+      duration: formatDuration(nextTrack?.duration),
+      playlist: nextTrack?.song?.album || nextTrack?.playlist || 'On Air Soon',
+      status: isItemNotStarted(nextTrack) ? 'upcoming' : 'current',
+    });
+  }
+
+  // Add songHistory from API (as-is, no filtering)
+  const historyItems = songHistory
+    .slice(0, 2)
+    .map((item) => ({
+      id: item.sh_id,
+      title: item.song?.title ?? 'Program',
+      timeRange: formatTimeRange(item.played_at, item.duration),
+      day: formatDateLabel(item.played_at),
+      duration: formatDuration(item.duration),
+      playlist: item.song?.album || item.playlist || '',
+      status: isItemNotStarted(item) ? 'upcoming' : 'past',
+    }));
+
+  scheduleItems.push(...historyItems);
 
 
   // Animated waveform bars
@@ -847,7 +866,10 @@ const RadioScreen = () => {
       <View style={styles.overlay} />
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: (styles.scrollContent?.paddingBottom || 0) + (Platform.OS === 'android' ? insets.bottom : 0) }
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.container}>
@@ -1018,6 +1040,14 @@ const RadioScreen = () => {
                             {item.day}
                           </Text>
                         </View>
+                        {item.duration && (
+                          <View style={styles.programMetaItem}>
+                            <Ionicons name="hourglass-outline" size={12} color="#F5B400" />
+                            <Text style={styles.programMetaText}>
+                              {item.duration}
+                            </Text>
+                          </View>
+                        )}
                       </View>
                       <View style={styles.programHeaderRow}>
                         <MarqueeText 
@@ -1030,6 +1060,16 @@ const RadioScreen = () => {
                         {item.status === 'upcoming' && (
                           <View style={styles.tableBadge}>
                             <Text style={styles.tableBadgeText}>NEXT</Text>
+                          </View>
+                        )}
+                        {item.status === 'current' && (
+                          <View style={[styles.tableBadge, styles.tableBadgeCurrent]}>
+                            <Text style={[styles.tableBadgeText, styles.tableBadgeTextCurrent]}>NOW</Text>
+                          </View>
+                        )}
+                        {item.status === 'past' && (
+                          <View style={[styles.tableBadge, styles.tableBadgePast]}>
+                            <Text style={[styles.tableBadgeText, styles.tableBadgeTextPast]}>PAST</Text>
                           </View>
                         )}
                       </View>
@@ -1511,10 +1551,29 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignSelf: 'flex-start',
   },
+  tableBadgePast: {
+    backgroundColor: '#9bcfbd',
+  },
+  tableBadgeCurrent: {
+    backgroundColor: BRAND_COLORS.primary,
+  },
   tableBadgeText: {
     color: '#fff',
     fontSize: 9,
     fontWeight: '700',
+  },
+  tableBadgeTextPast: {
+    color: '#0B4733',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  tableBadgeTextCurrent: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  tableBadgeTextPast: {
+    color: '#0B4733',
     letterSpacing: 0.5,
   },
   programMetaRow: {

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Image, ScrollView, TouchableOpacity, Animated, FlatList, Dimensions, Modal, Platform, Share } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { WebView } from 'react-native-webview';
 import axios from 'axios';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -12,6 +13,137 @@ import { getCalculationMethod, getTimezone } from '../services/prayerSettings';
 
 const friendlyName = (playlist) =>
   playlist ? playlist.charAt(0).toUpperCase() + playlist.slice(1) : 'Next Prayer';
+
+// Helper function to strip HTML tags but preserve line breaks for card preview
+const stripHTMLForPreview = (html) => {
+  if (!html) return '';
+  // Replace <br> and <br/> with newlines
+  let text = html.replace(/<br\s*\/?>/gi, '\n');
+  // Replace </p> and </div> with newlines
+  text = text.replace(/<\/p>/gi, '\n');
+  text = text.replace(/<\/div>/gi, '\n');
+  // Remove all other HTML tags
+  text = text.replace(/<[^>]*>/g, '');
+  // Decode common HTML entities
+  text = text.replace(/&nbsp;/g, ' ');
+  text = text.replace(/&amp;/g, '&');
+  text = text.replace(/&lt;/g, '<');
+  text = text.replace(/&gt;/g, '>');
+  text = text.replace(/&quot;/g, '"');
+  text = text.replace(/&#39;/g, "'");
+  text = text.replace(/&apos;/g, "'");
+  // Remove multiple consecutive spaces (keep single space)
+  text = text.replace(/[ \t]+/g, ' ');
+  // Clean up multiple consecutive newlines (max 2)
+  text = text.replace(/\n{3,}/g, '\n\n');
+  // Split into lines, trim each line, and remove empty lines
+  const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+  // Join with single newline
+  text = lines.join('\n');
+  // Final trim
+  return text.trim();
+};
+
+// Helper function to convert relative URL to absolute
+const makeAbsoluteUrl = (url) => {
+  if (!url) return url;
+  
+  // Already absolute
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+    return url;
+  }
+  
+  // Relative path starting with /
+  if (url.startsWith('/')) {
+    return `https://api.tashkeel.lk${url}`;
+  }
+  
+  // Relative path without /
+  return `https://api.tashkeel.lk/${url}`;
+};
+
+// Helper function to process HTML and fix image URLs
+const processHTMLContent = (htmlContent) => {
+  if (!htmlContent) return '';
+  
+  let processedHTML = htmlContent;
+  
+  // Convert relative image URLs in img src attributes
+  processedHTML = processedHTML.replace(
+    /<img([^>]*?)src\s*=\s*(["'])([^"']+)\2([^>]*?)>/gi,
+    (match, before, quote, src, after) => {
+      const absoluteSrc = makeAbsoluteUrl(src.trim());
+      return `<img${before}src=${quote}${absoluteSrc}${quote}${after}>`;
+    }
+  );
+  
+  return processedHTML;
+};
+
+// Helper function to create HTML content with styling
+const createHTMLContent = (htmlContent) => {
+  const processedContent = processHTMLContent(htmlContent);
+  
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-size: 16px;
+            line-height: 26px;
+            color: #0B4733;
+            background-color: transparent;
+          }
+          p {
+            margin: 0 0 16px 0;
+          }
+          img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            margin: 16px 0;
+            display: block;
+          }
+          h1, h2, h3, h4, h5, h6 {
+            color: #0B4733;
+            margin-top: 24px;
+            margin-bottom: 12px;
+            font-weight: 700;
+          }
+          h1 { font-size: 24px; }
+          h2 { font-size: 20px; }
+          h3 { font-size: 18px; }
+          a {
+            color: #0F8D6B;
+            text-decoration: none;
+          }
+          ul, ol {
+            margin: 16px 0;
+            padding-left: 24px;
+          }
+          li {
+            margin: 8px 0;
+          }
+          blockquote {
+            margin: 16px 0;
+            padding: 12px 16px;
+            border-left: 4px solid #0F8D6B;
+            background-color: #f0f9f6;
+            font-style: italic;
+          }
+        </style>
+      </head>
+      <body>
+        ${processedContent}
+      </body>
+    </html>
+  `;
+};
 
 const formatCountdown = (diff) => {
   const totalSeconds = Math.max(Math.floor(diff.as('seconds')), 0);
@@ -35,6 +167,8 @@ const AnnouncementsCard = ({ announcements, loading }) => {
   const flatListRef = useRef(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
+  const [messageHeight, setMessageHeight] = useState(100);
+  const [bodyHeight, setBodyHeight] = useState(200);
   const autoScrollTimer = useRef(null);
 
   useEffect(() => {
@@ -93,18 +227,18 @@ const AnnouncementsCard = ({ announcements, loading }) => {
 
       const title = announcement.title || 'Tashkeel Reminders';
       
-      // Build message with proper spacing
+      // Build message with proper spacing (strip HTML tags for clean text)
       let message = '';
       if (announcement.title) {
-        const titleText = announcement.title.trim();
+        const titleText = stripHTMLForPreview(announcement.title).trim();
         const separator = '='.repeat(titleText.length);
         message += titleText + '\n' + separator + '\n';
       }
       if (announcement.message) {
-        message += announcement.message.trim() + '\n\n';
+        message += stripHTMLForPreview(announcement.message).trim() + '\n\n';
       }
       if (announcement.body) {
-        message += announcement.body.trim() + '\n\n';
+        message += stripHTMLForPreview(announcement.body).trim() + '\n\n';
       }
       message += 'From: Tashkeel App';
 
@@ -178,12 +312,12 @@ const AnnouncementsCard = ({ announcements, loading }) => {
                     )}
                     {item.message && (
                       <Text style={styles.announcementMessage} numberOfLines={2}>
-                        {item.message}
+                        {stripHTMLForPreview(item.message)}
                       </Text>
                     )}
                     {item.body && (
                       <Text style={styles.announcementBody} numberOfLines={3}>
-                        {item.body}
+                        {stripHTMLForPreview(item.body)}
                       </Text>
                     )}
                   </View>
@@ -226,7 +360,10 @@ const AnnouncementsCard = ({ announcements, loading }) => {
               <Text style={styles.announcementModalHeaderTitle}>Reminders</Text>
               <View style={styles.announcementModalHeaderSpacer} />
             </View>
-            <ScrollView style={styles.announcementModalContent}>
+            <ScrollView 
+              style={styles.announcementModalContent}
+              contentContainerStyle={{ paddingBottom: 30 }}
+            >
               {selectedAnnouncement.image && (
                 <ScrollView
                   style={[styles.announcementModalImageContainer, {
@@ -255,6 +392,7 @@ const AnnouncementsCard = ({ announcements, loading }) => {
                     style={{
                       width: Dimensions.get('window').width - 32,
                       height: Dimensions.get('window').height * 0.4,
+                      borderRadius: 12,
                     }}
                     resizeMode="contain"
                   />
@@ -272,10 +410,70 @@ const AnnouncementsCard = ({ announcements, loading }) => {
                 <Text style={styles.announcementModalTitle}>{selectedAnnouncement.title}</Text>
               )}
               {selectedAnnouncement.message && (
-                <Text style={styles.announcementModalMessage}>{selectedAnnouncement.message}</Text>
+                <View style={styles.announcementModalHTMLContainer}>
+                  <WebView
+                    source={{ 
+                      html: createHTMLContent(selectedAnnouncement.message),
+                      baseUrl: 'https://api.tashkeel.lk'
+                    }}
+                    style={[styles.announcementModalWebView, { height: messageHeight }]}
+                    scrollEnabled={false}
+                    showsVerticalScrollIndicator={false}
+                    showsHorizontalScrollIndicator={false}
+                    originWhitelist={['*']}
+                    onMessage={(event) => {
+                      try {
+                        const height = parseInt(event.nativeEvent.data, 10);
+                        if (height && height > 0 && height < 50000) {
+                          setMessageHeight(Math.max(height + 20, 100));
+                        }
+                      } catch (e) {
+                        console.error('Error parsing height:', e);
+                      }
+                    }}
+                    injectedJavaScript={`
+                      (function() {
+                        var height = document.body.scrollHeight || document.body.offsetHeight || 100;
+                        if (window.ReactNativeWebView) {
+                          window.ReactNativeWebView.postMessage(height.toString());
+                        }
+                      })();
+                    `}
+                  />
+                </View>
               )}
               {selectedAnnouncement.body && (
-                <Text style={styles.announcementModalBody}>{selectedAnnouncement.body}</Text>
+                <View style={[styles.announcementModalHTMLContainer, { marginBottom: 30 }]}>
+                  <WebView
+                    source={{ 
+                      html: createHTMLContent(selectedAnnouncement.body),
+                      baseUrl: 'https://api.tashkeel.lk'
+                    }}
+                    style={[styles.announcementModalWebView, { height: bodyHeight }]}
+                    scrollEnabled={false}
+                    showsVerticalScrollIndicator={false}
+                    showsHorizontalScrollIndicator={false}
+                    originWhitelist={['*']}
+                    onMessage={(event) => {
+                      try {
+                        const height = parseInt(event.nativeEvent.data, 10);
+                        if (height && height > 0 && height < 50000) {
+                          setBodyHeight(Math.max(height + 20, 200));
+                        }
+                      } catch (e) {
+                        console.error('Error parsing height:', e);
+                      }
+                    }}
+                    injectedJavaScript={`
+                      (function() {
+                        var height = document.body.scrollHeight || document.body.offsetHeight || 200;
+                        if (window.ReactNativeWebView) {
+                          window.ReactNativeWebView.postMessage(height.toString());
+                        }
+                      })();
+                    `}
+                  />
+                </View>
               )}
             </ScrollView>
           </View>
@@ -561,6 +759,7 @@ const BayansStrip = ({ items, onSelect }) => (
 const LOCATION_NAME_STORAGE_KEY = 'USER_LOCATION_LABEL_V2';
 
 const HomeScreen = () => {
+  const insets = useSafeAreaInsets();
   const initialZone =
     Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
@@ -957,7 +1156,10 @@ const HomeScreen = () => {
   }, [timeZoneId]);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 24 }}>
+    <ScrollView 
+      style={styles.container} 
+      contentContainerStyle={{ paddingBottom: 24 + (Platform.OS === 'android' ? insets.bottom : 0) }}
+    >
       <View style={styles.dateNavRow}>
         <TouchableOpacity
           style={styles.dateNavButton}
@@ -1399,6 +1601,7 @@ const styles = StyleSheet.create({
   announcementModalContent: {
     flex: 1,
     padding: 16,
+    paddingBottom: 36, // 20px extra space + 16px padding = 36px total
   },
   announcementModalImageContainer: {
     width: Dimensions.get('window').width - 32,
@@ -1417,6 +1620,7 @@ const styles = StyleSheet.create({
   announcementModalImage: {
     width: Dimensions.get('window').width - 32,
     height: Dimensions.get('window').height * 0.4,
+    borderRadius: 12,
   },
   announcementModalShareButton: {
     flexDirection: 'row',
@@ -1450,6 +1654,17 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#0B4733',
     lineHeight: 24,
+  },
+  announcementModalHTMLContainer: {
+    width: '100%',
+    marginBottom: 16,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: 'transparent',
+  },
+  announcementModalWebView: {
+    width: '100%',
+    backgroundColor: 'transparent',
   },
   announcementIndicators: {
     flexDirection: 'row',
