@@ -667,23 +667,33 @@ const SunArc = ({ schedule, currentDateTime }) => {
           })}
 
           {/* Markers for each prayer (including sunrise) */}
-          {markers.map((slot) => (
-            <View
-              key={slot.name}
-              style={[
-                styles.sunArcMarker,
-                {
-                  left: slot.x - 18,
-                  top: slot.y - 6,
-                },
-              ]}
-            >
-              <View style={styles.sunArcMarkerDot} />
-              <Text style={styles.sunArcMarkerLabel}>
-                {slot.name}
-              </Text>
-            </View>
-          ))}
+          {markers.map((slot, index) => {
+            const isLabelAbove = index % 2 === 1; // Odd indices (1, 3, 5) above, even (0, 2, 4) below
+            return (
+              <View
+                key={slot.name}
+                style={[
+                  styles.sunArcMarker,
+                  {
+                    left: slot.x - 18,
+                    top: slot.y - 6, // Dot center position (dot is 12px tall, so -6 centers it)
+                  },
+                ]}
+              >
+                {isLabelAbove && (
+                  <Text style={[styles.sunArcMarkerLabel, styles.sunArcMarkerLabelAbove]}>
+                    {slot.name}
+                  </Text>
+                )}
+                <View style={styles.sunArcMarkerDot} />
+                {!isLabelAbove && (
+                  <Text style={styles.sunArcMarkerLabel}>
+                    {slot.name}
+                  </Text>
+                )}
+              </View>
+            );
+          })}
 
           {/* Animated dot for current time along the curve */}
           {currentDot && (
@@ -1267,6 +1277,12 @@ const styles = StyleSheet.create({
     color: '#d0f0e4',
     fontWeight: '600',
     textAlign: 'center',
+  },
+  sunArcMarkerLabelAbove: {
+    position: 'absolute',
+    top: -18,
+    marginTop: 0,
+    marginBottom: 0,
   },
   sunArcCurrentDotContainer: {
     position: 'absolute',
