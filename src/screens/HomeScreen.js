@@ -953,12 +953,9 @@ const HomeScreen = () => {
         console.log('🕌 API returned prayer times:', times);
         console.log('🕌 Requested timezone:', timeZoneId);
 
-        // Get the location's actual timezone (for conversion if needed)
-        const locationTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-        console.log('🕌 Location timezone:', locationTimezone);
-
-        // Build schedule using API times
-        // Note: API should return times in the requested timezone, but we'll handle conversion if needed
+        // Build schedule using API times exactly as given, interpreted in the requested timezone.
+        // The backend already applies the correct method and timezone conversion, so we should
+        // NOT re-interpret or convert these times again on the client – just render them.
         const labels = [
           { key: 'fajr', name: 'Fajr' },
           { key: 'sunrise', name: 'Sunrise' },
@@ -977,38 +974,18 @@ const HomeScreen = () => {
             const minute = parseInt(minuteStr, 10);
             if (Number.isNaN(hour) || Number.isNaN(minute)) return null;
 
-            // The API might return times in the location's timezone, not the requested timezone
-            // So we need to: 1) interpret times as location timezone, 2) convert to requested timezone
-            let dt;
-            if (timeZoneId !== locationTimezone) {
-              // API likely returns times in location timezone, so interpret them there first
-              const dtInLocationTz = DateTime.fromObject(
-                {
-                  year: selectedDate.year,
-                  month: selectedDate.month,
-                  day: selectedDate.day,
-                  hour,
-                  minute,
-                },
-                { zone: locationTimezone }
-              );
-              // Then convert to requested timezone
-              dt = dtInLocationTz.setZone(timeZoneId);
-              console.log(`🔄 ${name}: ${t} (${locationTimezone}) -> ${dt.toFormat('h:mm a')} (${timeZoneId})`);
-            } else {
-              // Same timezone, no conversion needed
-              dt = DateTime.fromObject(
-                {
-                  year: selectedDate.year,
-                  month: selectedDate.month,
-                  day: selectedDate.day,
-                  hour,
-                  minute,
-                },
-                { zone: timeZoneId }
-              );
-              console.log(`🕌 ${name}: ${t} -> ${dt.toFormat('h:mm a')} (${timeZoneId})`);
-            }
+            // Interpret the API time directly in the requested timezone.
+            const dt = DateTime.fromObject(
+              {
+                year: selectedDate.year,
+                month: selectedDate.month,
+                day: selectedDate.day,
+                hour,
+                minute,
+              },
+              { zone: timeZoneId }
+            );
+            console.log(`🕌 ${name}: ${t} -> ${dt.toFormat('h:mm a')} (${timeZoneId})`);
 
             return {
               name,
