@@ -951,8 +951,9 @@ const HomeScreen = () => {
             lat: coords.latitude,
             lon: coords.longitude,
             date: apiDate,
-            method: calcMethod || 'ISNA',
-            timeZoneId: timeZoneId,
+            method: calcMethod || 'MWL',
+            timezone: timeZoneId,
+            format: '12h',
           },
           headers: {
             Accept: 'application/json',
@@ -979,22 +980,16 @@ const HomeScreen = () => {
           .map(({ key, name }) => {
             const t = times[key];
             if (!t) return null;
-            const [hourStr, minuteStr] = String(t).split(':');
-            const hour = parseInt(hourStr, 10);
-            const minute = parseInt(minuteStr, 10);
-            if (Number.isNaN(hour) || Number.isNaN(minute)) return null;
 
-            // Interpret the API time directly in the requested timezone.
-            const dt = DateTime.fromObject(
-              {
-                year: selectedDate.year,
-                month: selectedDate.month,
-                day: selectedDate.day,
-                hour,
-                minute,
-              },
-              { zone: timeZoneId }
-            );
+            // API now returns local prayer times in 12h format for the requested timezone.
+            // Parse using Luxon so AM/PM is respected.
+            const dt = DateTime.fromFormat(String(t), 'h:mm a', {
+              zone: timeZoneId,
+            });
+            if (!dt.isValid) {
+              console.warn('⚠️ Invalid prayer time from API:', name, t);
+              return null;
+            }
             console.log(`🕌 ${name}: ${t} -> ${dt.toFormat('h:mm a')} (${timeZoneId})`);
 
             return {

@@ -195,8 +195,9 @@ export async function getTodayPrayerTimes() {
         lat: coords.latitude,
         lon: coords.longitude,
         date: apiDate,
-        method: method || 'ISNA',
-        timeZoneId: timeZoneId,
+        method: method || 'MWL',
+        timezone: timeZoneId,
+        format: '12h',
       },
       headers: { Accept: 'application/json' },
     });
@@ -215,21 +216,10 @@ export async function getTodayPrayerTimes() {
     labels.forEach(({ key, name }) => {
       const t = times[key];
       if (!t) return;
-      const [hourStr, minuteStr] = String(t).split(':');
-      const hour = parseInt(hourStr, 10);
-      const minute = parseInt(minuteStr, 10);
-      if (Number.isNaN(hour) || Number.isNaN(minute)) return;
-
-      const dt = DateTime.fromObject(
-        {
-          year: today.year,
-          month: today.month,
-          day: today.day,
-          hour,
-          minute,
-        },
-        { zone: timeZoneId }
-      );
+      const dt = DateTime.fromFormat(String(t), 'h:mm a', {
+        zone: timeZoneId,
+      });
+      if (!dt.isValid) return;
 
       result[name] = dt;
     });
@@ -326,8 +316,9 @@ async function getPrayerTimesForDate(targetDate) {
         lat: coords.latitude,
         lon: coords.longitude,
         date: dateStr,
-        method: method || 'ISNA',
-        timeZoneId: timeZoneId,
+        method: method || 'MWL',
+        timezone: timeZoneId,
+        format: '12h',
       },
       headers: { Accept: 'application/json' },
     });
@@ -346,21 +337,10 @@ async function getPrayerTimesForDate(targetDate) {
     labels.forEach(({ key, name }) => {
       const t = times[key];
       if (!t) return;
-      const [hourStr, minuteStr] = String(t).split(':');
-      const hour = parseInt(hourStr, 10);
-      const minute = parseInt(minuteStr, 10);
-      if (Number.isNaN(hour) || Number.isNaN(minute)) return;
-
-      const prayerDateTime = DateTime.fromObject(
-        {
-          year: dateInZone.year,
-          month: dateInZone.month,
-          day: dateInZone.day,
-          hour,
-          minute,
-        },
-        { zone: timeZoneId }
-      );
+      const prayerDateTime = DateTime.fromFormat(String(t), 'h:mm a', {
+        zone: timeZoneId,
+      });
+      if (!prayerDateTime.isValid) return;
 
       prayers[name] = prayerDateTime;
       console.log(
